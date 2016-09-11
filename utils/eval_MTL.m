@@ -10,7 +10,7 @@ if strcmp(evalType,'perfcurve')
     % Compute AUC
     ct=0;
     if isempty(probY)
-        probY=cellfun(@(x,t) x*W(:,t)+C(t), X,num2cell(1:task_num),'UniformOutput',false);
+        probY=cellfun(@(t) getX(t)*W(:,t)+C(t), num2cell(1:task_num),'UniformOutput',false);
     end
     for t = 1: task_num
         if(length(unique(Y{t}))==1)
@@ -29,7 +29,7 @@ if strcmp(evalType,'perfcurve')
     eval=eval/ct;
 elseif strcmp(evalType,'accuracy')
     if isempty(probY)
-        probY=cellfun(@(x,t) x*W(:,t)+C(t), X,num2cell(1:task_num),'UniformOutput',false);
+        probY=cellfun(@(t) getX(t)*W(:,t)+C(t),num2cell(1:task_num),'UniformOutput',false);
     end
     
     ct=0;
@@ -38,7 +38,7 @@ elseif strcmp(evalType,'accuracy')
             task_eval(t)= 0;
             continue;
         end
-        N = size(X{t},1);
+        N = size(getX(t),1);
         corr=sum(sign(probY{t})==Y{t});
         task_eval(t)= corr/N;
         eval=eval+corr/N;
@@ -47,7 +47,7 @@ elseif strcmp(evalType,'accuracy')
     eval=eval/ct;
 elseif strcmp(evalType,'fmeasure')
     if isempty(probY)
-        probY=cellfun(@(x,t) x*W(:,t)+C(t), X,num2cell(1:task_num),'UniformOutput',false);
+        probY=cellfun(@(t) getX(t)*W(:,t)+C(t),num2cell(1:task_num),'UniformOutput',false);
     end
     ct=0;
     for t = 1: task_num
@@ -65,14 +65,14 @@ elseif strcmp(evalType,'fmeasure')
 elseif strcmp(evalType,'rmse')
     % RMSE
     for t = 1: task_num
-        Ypred = X{t} * W(:, t)+C(t);
+        Ypred = getX(t) * W(:, t)+C(t);
         task_eval(t)=sqrt(mean((Ypred - Y{t}).^2));
     end
     eval = mean(task_eval);
 elseif strcmp(evalType,'mse')
     % MSE
     for t = 1: task_num
-        Ypred = X{t} * W(:, t)+C(t);
+        Ypred = getX(t) * W(:, t)+C(t);
         task_eval(t)=mean((Ypred - Y{t}).^2);
     end
     eval = mean(task_eval);
@@ -80,14 +80,14 @@ elseif strcmp(evalType,'mse')
 elseif strcmp(evalType,'nmse')
     % NMSE
     for t = 1: task_num
-        Ypred = (X{t} * W(:, t)+C(t));
+        Ypred = (getX(t) * W(:, t)+C(t));
         task_eval(t)=mean((Ypred - Y{t}).^2)/var(Y{t});
     end
     eval = mean(task_eval);
 elseif strcmp(evalType,'expvar')
     % Explained Variance
     for t = 1: task_num
-        Ypred = (X{t} * W(:, t)+C(t));
+        Ypred = (getX(t) * W(:, t)+C(t));
         nmse=mean((Ypred - Y{t}).^2)/var(Y{t});
         task_eval(t)=1-nmse;
     end
@@ -167,6 +167,14 @@ end
         stats = struct(field1,value1,field2,value2,field3,value3,field4,value4,field5,value5,field6,value6,field7,value7);
         if exist('gorder','var')
             stats = struct(field1,value1,field2,value2,field3,value3,field4,value4,field5,value5,field6,value6,field7,value7,'groupOrder',gorder);
+        end
+        
+    end
+    function Xt=getX(taskId)
+        if iscell(X)
+            Xt=X{taskId};
+        else
+            Xt=X;
         end
         
     end

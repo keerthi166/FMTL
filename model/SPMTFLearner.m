@@ -1,4 +1,4 @@
-function [W,C, invD,tauMat] = SPMTFLearner( X,Y,lambda,opts)
+function [W,C, invD,tauMat] = SPMTFLearner( X,Y,rho_fr,lambda,opts)
 %% Self-paced Multi-task Feature learning
 % Solve the following objective function
 %
@@ -30,11 +30,12 @@ invD=eye(P)/(P);
 epsilon=1e-8;
 
 % Regularization Parameters
-rho_l1=0;
-rho_fr=0.1; %reg. param for feature regularization penalty
-if isfield(opts,'rho_fr')
-    rho_fr=opts.rho_fr;
+%rho_fr: reg. param for feature regularization penalty
+rho_l1=0;%reg. param for l1 regularization penalty
+if isfield(opts,'rho_l1')
+    rho_l1=opts.rho_l1;
 end
+
 selftype='prob';
 obj=0;
 tau=[];
@@ -49,7 +50,9 @@ for it=1:maxIter
     
     % Solve for tau, given W and D
     [~,taskF]=func(W,C);
-    
+    if strcmp(loss,'least')
+        taskF=taskF./N;
+    end
     
     if strcmp(selftype,'sparse')
         [~,sortObsIdx]=sort(taskF);
@@ -59,7 +62,7 @@ for it=1:maxIter
         lambda=lambda+stepSize;
     elseif strcmp(selftype,'weight')
         tau=max((lambda*ones(1,K)-taskF),0.01);
-        lambda=lambda*1.2;
+        lambda=lambda*1.1;
     elseif strcmp(selftype,'prob')
         tau=exp(-taskF/lambda);
         lambda=lambda*1.1;

@@ -1,4 +1,4 @@
-function [W,C] = MMTLearner(X,Y,opts)
+function [W,C] = MMTLearner(X,Y,rho_sr,opts)
 %% Mean Multi-task learner
 % Solve the following objective function
 %
@@ -20,15 +20,16 @@ debugMode=opts.debugMode;
 
 
 % Regularization Parameters
-mu=opts.mu; % reg. param for squared l2-norm penalty
+%rho_sr :reg. param for structure regularization penalty
+mu=0; % reg. param for l2-norm penalty
+if isfield(opts,'mu')
+    mu=opts.mu;
+end
 rho_l1=0; % reg. param for l1-norm penalty
 if isfield(opts,'rho')
     rho_l1=opts.rho_l1;
 end
-rho_sr=0.1; % reg. param for structure regularization penalty
-if isfield(opts,'rho_sr')
-    rho_sr=opts.rho_sr;
-end
+
 
 loss=opts.loss;
 debugMode=opts.debugMode;

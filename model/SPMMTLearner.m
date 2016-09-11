@@ -1,4 +1,4 @@
-function [W,C,tauMat] = SPMMTLearner(X,Y,lambda,opts)
+function [W,C,tauMat] = SPMMTLearner(X,Y,rho_sr,lambda,opts)
 %% Self Paced Multi-task learner
 % Solve the following objective function
 %
@@ -18,15 +18,16 @@ function [W,C,tauMat] = SPMMTLearner(X,Y,lambda,opts)
 debugMode=opts.debugMode;
 
 % Regularization Parameters
-mu=opts.mu; % reg. param for squared l2-norm penalty
+%rho_sr :reg. param for structure regularization penalty
+mu=0; % reg. param for l2-norm penalty
+if isfield(opts,'mu')
+    mu=opts.mu;
+end
 rho_l1=0; % reg. param for l1-norm penalty
 if isfield(opts,'rho')
     rho_l1=opts.rho_l1;
 end
-rho_sr=0.1; % reg. param for structure regularization penalty
-if isfield(opts,'rho_sr')
-    rho_sr=opts.rho_sr;
-end
+
 
 loss=opts.loss;
 debugMode=opts.debugMode;
@@ -41,6 +42,7 @@ selftype='prob';
 obj=0;
 tau=[];
 stepSize=lambda;
+c=1.1;
 tauMat=[];
 Wm=zeros(P,1);
 
@@ -50,7 +52,9 @@ for it=1:maxIter
     
     % Solve for tau, given W and D
     [~,taskF]=func(W,C);
-    taskF=taskF./N;
+    if strcmp(loss,'least')
+        taskF=taskF./N;
+    end
     
     if strcmp(selftype,'sparse')
         [~,sortObsIdx]=sort(taskF);
@@ -60,10 +64,10 @@ for it=1:maxIter
         lambda=lambda+stepSize;
     elseif strcmp(selftype,'weight')
         tau=max((lambda*ones(1,K)-taskF),0.01);
-        lambda=lambda*1.2;
+        lambda=lambda*c;
     elseif strcmp(selftype,'prob')
         tau=exp(-taskF/lambda);
-        lambda=lambda*1.1;
+        lambda=lambda*c;
     end
     if (sum(tau)==0)
         tau=ones(1,K)*0.1;

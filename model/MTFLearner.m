@@ -1,4 +1,4 @@
-function [W,C, invD] = MTFLearner( X,Y,opts)
+function [W,C, invD] = MTFLearner( X,Y,rho_fr,opts)
 %% Multi-task Feature learning
 % Solve the following objective function
 %
@@ -30,11 +30,12 @@ invD=eye(P)/(P);
 epsilon=1e-8;
 
 % Regularization Parameters
-rho_l1=0;
-rho_fr=0.1; %reg. param for feature regularization penalty
-if isfield(opts,'rho_fr')
-    rho_fr=opts.rho_fr;
+%rho_fr: reg. param for feature regularization penalty
+rho_l1=0;%reg. param for l1 regularization penalty
+if isfield(opts,'rho_l1')
+    rho_l1=opts.rho_l1;
 end
+
 
 obj=0;
 for it=1:maxIter

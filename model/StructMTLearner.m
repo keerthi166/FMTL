@@ -1,4 +1,4 @@
-function [W,C] = StructMTLearner(X,Y,Omega, opts)
+function [W,C] = StructMTLearner(X,Y,rho_sr,opts)
 %% Structured Multi-task learner
 % Solve the following objective function
 %
@@ -17,24 +17,29 @@ function [W,C] = StructMTLearner(X,Y,Omega, opts)
 
 debugMode=opts.debugMode;
 
+K=length(Y);
+N=cellfun(@(y) size(y,1),Y);
+[~,P]=size(getX(1));
 
 
 % Regularization Parameters
-mu=opts.mu; % reg. param for squared l2-norm penalty
+% rho_sr: reg. param for structure regularization penalty
+mu=0; % reg. param for l2-norm penalty
+if isfield(opts,'mu')
+    mu=opts.mu;
+end
 rho_l1=0; % reg. param for l1-norm penalty
 if isfield(opts,'rho')
     rho_l1=opts.rho_l1;
 end
-rho_sr=0.1; % reg. param for structure regularization penalty
-if isfield(opts,'rho_sr')
-    rho_sr=opts.rho_sr;
+
+R=eye (K) - ones (K) / K;
+Omega=R*R';
+if isfield(opts,'Omega')
+    Omega=opts.Omega;
 end
 
 loss=opts.loss;
-
-K=length(Y);
-N=cellfun(@(x) size(x,1),X);
-[~,P]=size(X{1});
 
 % Solve for W
 [W,C] = MTSolver(X, Y,@grad,@func,@proj,opts);
@@ -47,18 +52,18 @@ N=cellfun(@(x) size(x,1),X);
         switch (loss)
             case 'hinge'
                 % Gradient of Hinge Loss
-                Pr=cellfun(@(x,w,n) [x,ones(n,1)]*w,X,Wcell,Ncell,'UniformOutput',false);
+                Pr=cellfun(@(t,w,n) [getX(t),ones(n,1)]*w,num2cell(1:K),Wcell,Ncell,'UniformOutput',false);
                 a=cellfun(@(p,y) p.*y<1,Pr,Y,'UniformOutput',false); % 1xK cell array
-                temp=cell2mat(cellfun(@(x,y,a,n) (-[x,ones(n,1)]'*diag(a)*y),X,Y,a,Ncell,'UniformOutput',false))*diag(1./N); % PxK matrix
+                temp=cell2mat(cellfun(@(t,y,a,n) (-[getX(t),ones(n,1)]'*diag(a)*y),num2cell(1:K),Y,a,Ncell,'UniformOutput',false))*diag(1./N); % PxK matrix
                 
             case 'logit'
                 % Gradient of Logistic Loss
-                Pr=cellfun(@(x,y,w,n) 1./(1+exp(-([x,ones(n,1)]*w).*y)),X,Y,Wcell,Ncell,'UniformOutput',false); % 1xK cell array
-                temp=cell2mat(cellfun(@(x,y,a,n) (-[x,ones(n,1)]'*diag(1-a)*y),X,Y,Pr,Ncell,'UniformOutput',false))*diag(1./N); % PxK matrix
+                Pr=cellfun(@(t,y,w,n) 1./(1+exp(-([getX(t),ones(n,1)]*w).*y)),num2cell(1:K),Y,Wcell,Ncell,'UniformOutput',false); % 1xK cell array
+                temp=cell2mat(cellfun(@(t,y,a,n) (-[getX(t),ones(n,1)]'*diag(1-a)*y),num2cell(1:K),Y,Pr,Ncell,'UniformOutput',false))*diag(1./N); % PxK matrix
                 
             otherwise
                 % Gradient of Squared Error Loss
-                temp=cell2mat(cellfun(@(x,y,w,n) (([x,ones(n,1)]'*[x,ones(n,1)])*w)-[x,ones(n,1)]'*y,X,Y,Wcell,Ncell,'UniformOutput',false)); % PxK matrix
+                temp=cell2mat(cellfun(@(t,y,w,n) (([getX(t),ones(n,1)]'*[getX(t),ones(n,1)])*w)-[getX(t),ones(n,1)]'*y,num2cell(1:K),Y,Wcell,Ncell,'UniformOutput',false)); % PxK matrix
         end
         gW=temp(1:end-1,:)+2*mu*W + 2*rho_sr*W*Omega;
         gW0=temp(end,:);
@@ -70,12 +75,12 @@ N=cellfun(@(x) size(x,1),X);
         Ncell=num2cell(N);
         switch (loss)
             case 'hinge'
-                temp=cellfun(@(x,w,y,n) mean(max(1-y.*([x,ones(n,1)]*w),0)),X,Wcell,Y,Ncell,'UniformOutput',false);
+                temp=cellfun(@(t,w,y,n) mean(max(1-y.*([getX(t),ones(n,1)]*w),0)),num2cell(1:K),Wcell,Y,Ncell,'UniformOutput',false);
             case 'logit'
-                temp=cellfun(@(x,w,y,n) mean(log(1+exp(-([x,ones(n,1)]*w).*y))),X,Wcell,Y,Ncell,'UniformOutput',false);
+                temp=cellfun(@(t,w,y,n) mean(log(1+exp(-([getX(t),ones(n,1)]*w).*y))),num2cell(1:K),Wcell,Y,Ncell,'UniformOutput',false);
             otherwise % Default Least Square Loss
                 % Func of Squared Error Loss
-                temp=cellfun(@(x,w,y,n) 0.5*norm((y - [x,ones(n,1)]*w))^2,X,Wcell,Y,Ncell,'UniformOutput',false);
+                temp=cellfun(@(t,w,y,n) 0.5*norm((y - [getX(t),ones(n,1)]*w))^2,num2cell(1:K),Wcell,Y,Ncell,'UniformOutput',false);
         end
         F=sum(cell2mat(temp))+mu*norm(W,'fro')^2 + rho_sr*trace(W*Omega*W');
     end
@@ -86,6 +91,15 @@ N=cellfun(@(x) size(x,1),X);
         % L1 penalty
         W = sign(W).*max(0,abs(W)- a*rho_l1/2);
         ns = sum(sum(abs(W)));
+    end
+
+function Xt=getX(taskId)
+       if iscell(X)
+           Xt=X{taskId};
+       else
+           Xt=X;
+       end
+        
     end
 end
 

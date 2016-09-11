@@ -14,14 +14,14 @@ K= length(Y);
 Y=cellfun(@(y) 2*y-1,Y,'UniformOutput',false);
 
 
-Nrun=10;
+Nrun=1;
 % CV Settings
 kFold = 5; % 5 fold cross validation
 
 
 % Model Settings
 models={'STL','MMTL','SPMMTL','MTFL','SPMTFL'}; % Choose subset: {'STL','ITL','MMTL','MTFL','MTRL'};
-trainSizes=[30,40,80,160]; %20:20:300;
+trainSizes=80; %[30,40,80,160];
 
 opts.loss='logit'; % Choose one: 'logit', 'least', 'hinge'
 opts.scoreType='perfcurve'; % Choose one: 'perfcurve', 'class', 'mse', 'nmse'
@@ -29,13 +29,16 @@ opts.debugMode=false;
 opts.verbose=true;
 opts.tol=1e-5;
 opts.maxIter=100; % max iter for Accelerated Grad
-opts.maxOutIter=25; % max iter for alternating optimization
+opts.maxOutIter=50; % max iter for alternating optimization
 
 % Initilaization
 result=cell(length(models),1);
 for m=1:length(models)
     result{m}.score=zeros(Nrun,length(trainSizes));
     result{m}.taskScore=zeros(K,Nrun,length(trainSizes));
+    if strncmpi(models{m},'SPM',3)
+        result{m}.tau=cell(1,Nrun);
+    end
     result{m}.runtime=zeros(1,length(trainSizes));
 end
 
@@ -54,8 +57,11 @@ for nt=1:length(trainSizes)
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
     % Run Id - For Repeated Experiment
+    fprintf('Train Size %d\n',Ntrain);
     for rId=1:Nrun
-        
+        if opts.verbose
+            fprintf('Run %d (',rId);
+        end
         % Split Data into train and test
         split=cellfun(@(y,n) cvpartition(y,'HoldOut',n-Ntrain),Y,num2cell(N),'UniformOutput',false);
         
@@ -83,6 +89,10 @@ for nt=1:length(trainSizes)
                     end
             end
         %}
+        
+        if opts.verbose
+            fprintf('Exp[');
+        end
         for m=1:length(models)
             model=models{m};
             opts.method=model;
@@ -90,35 +100,47 @@ for nt=1:length(trainSizes)
             switch model
                 case 'STL'
                     % Single Task Learner
-                    opts.mu=0.1;
-                    %opts.rho_l1=0;
-                    [W,C] = STLearner(Xtrain, Ytrain,opts);
+                    cv.stl.mu=0.1;
+                    [W,C] = STLearner(Xtrain, Ytrain,cv.stl.mu,opts);
+                    if opts.verbose
+                        fprintf('*');
+                    end
                 case 'MMTL'
                     % Mean multi-task learner
-                    opts.mu=0;
-                    %opts.rho_l1=0;
-                    opts.rho_sr=0.1;
+                    cv.mmtl.rho_sr=0.1;
                     R=eye (K) - ones (K) / K;
-                    Omega=R*R';
-                    [W,C] = StructMTLearner(Xtrain, Ytrain,Omega,opts);
+                    opts.Omega=R*R';
+                    [W,C] = StructMTLearner(Xtrain, Ytrain,cv.mmtl.rho_sr,opts);
+                    if opts.verbose
+                        fprintf('*');
+                    end
                 case 'SPMMTL'
-                    % Mean multi-task learner
-                    opts.mu=0;
-                    %opts.rho_l1=0;
-                    opts.rho_sr=0.1;
+                    % Self-paced Mean multi-task learner
+                    cv.spmmtl.rho_sr=0.1;
                     lambda=5;
-                    [W,C] = SPMMTLearner(Xtrain, Ytrain,lambda,opts);
+                    [W,C,tau] = SPMMTLearner(Xtrain, Ytrain,cv.spmmtl.rho_sr,lambda,opts);
+                    if opts.verbose
+                        fprintf('*');
+                    end
+                    result{m}.tau{rId}=tau;
                 case 'MTFL'
                     % Multi-task Feature Learner
-                    %opts.rho_l1=0;
-                    opts.rho_fr=0.1;
-                    [W,C] = MTFLearner(Xtrain, Ytrain,opts);
+                    cv.mtfl.rho_fr=0.1;
+                    [W,C, invD] = MTFLearner(Xtrain, Ytrain,cv.mtfl.rho_fr,opts);
+                    if opts.verbose
+                        fprintf('*');
+                    end
                 case 'SPMTFL'
-                    % Multi-task Feature Learner
+                    % Self-paced Multi-task Feature Learner
                     %opts.rho_l1=0;
-                    opts.rho_fr=0.1;
+                    cv.spmtfl.rho_fr=0.1;
                     lambda=5;
-                    [W,C,invD,tau] = SPMTFLearner(Xtrain, Ytrain,lambda,opts);
+                    [W,C,invD,tau] = SPMTFLearner(Xtrain, Ytrain,cv.spmtfl.rho_fr,lambda,opts);
+                    if opts.verbose
+                        fprintf('*');
+                    end
+                    result{m}.tau{rId}=tau;
+                    
                 case 'MTRL'
                     % Multi-task Relationship Learner
                     %opts.rho_l1=0;
@@ -136,6 +158,9 @@ for nt=1:length(trainSizes)
             if(opts.debugMode)
                 fprintf('Method: %s, Ntrain: %d, RunId: %d, AUC: %f \n',opts.method,Ntrain,rId,result{m}.score(rId,nt));
             end
+        end
+        if opts.verbose
+            fprintf(']:DONE)\n');
         end
     end
     %%% Per TrainSize Stats

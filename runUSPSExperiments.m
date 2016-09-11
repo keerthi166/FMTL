@@ -5,8 +5,8 @@ rng('default');
 
 % Read Landmine data
 load('data/usps/split1_usps_1000train.mat')
-X=[digit_trainx;digit_validx;digit_testx];
-Y=[digit_trainy;digit_validy;digit_testy];
+X=[digit_trainx;digit_testx];
+Y=[digit_trainy;digit_testy];
 
 classes=unique(Y);
 nclass= length(classes);
@@ -24,27 +24,30 @@ kFold = 5; % 5 fold cross validation
 
 % Model Settings
 models={'STL','MMTL','SPMMTL','MTFL','SPMTFL'}; % Choose subset: {'STL','ITL','MMTL','MTFL','MTRL'};
-trainSizes=0.75; %20:20:300;
+trainSizes=1000;
 
 opts.loss='hinge'; % Choose one: 'logit', 'least', 'hinge'
 opts.debugMode=false;
 opts.verbose=true;
 opts.tol=1e-5;
 opts.maxIter=100; % max iter for Accelerated Grad
-opts.maxOutIter=25; % max iter for alternating optimization
+opts.maxOutIter=50; % max iter for alternating optimization
 
 % Initilaization
 result=cell(length(models),1);
 for m=1:length(models)
     result{m}.score=zeros(Nrun,length(trainSizes));
     result{m}.taskScore=zeros(nclass,Nrun,length(trainSizes));
+    if strncmpi(models{m},'SPM',3)
+        result{m}.tau=cell(1,Nrun);
+    end
     result{m}.runtime=zeros(1,length(trainSizes));
 end
 
 
 
 for nt=1:length(trainSizes)
-    Ntrain=trainSizes(nt);
+    trainSize=trainSizes(nt);
     
     
     
@@ -53,10 +56,18 @@ for nt=1:length(trainSizes)
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
     % Run Id - For Repeated Experiment
+    fprintf('Train Size %d\n',trainSize);
     for rId=1:Nrun
+        if opts.verbose
+            fprintf('Run %d (',rId);
+        end
+        %------------------------------------------------------------------------
+        %                   Train-Test Split
+        %------------------------------------------------------------------------
+        
         
         % Split Data into train and test
-        split = cvpartition(Y,'HoldOut',1-Ntrain);
+        split = cvpartition(Y,'HoldOut',size(Y,1)-trainSize);
         Xrawtrain=X(split.training,:);
         Yrawtrain=Y(split.training);
         
@@ -77,7 +88,16 @@ for nt=1:length(trainSizes)
         end
         
         
-        % Do Cross Validation for models
+        % Normalize Data if needed
+        %[Xtrain,~,meanX,stdX] = normalizeMultitaskData(Xtrain);
+        % Normalize Test Data
+        %[Xtest,~,~,~] = normalizeMultitaskData(Xtest,[],meanX,stdX);
+        
+        
+        %------------------------------------------------------------------------
+        %                   Cross Validation
+        %------------------------------------------------------------------------
+        
         %opts.mu=0;
         %opts.rho_l1=0;
         %opts.rho_sr=0.1;
@@ -96,6 +116,10 @@ for nt=1:length(trainSizes)
                     end
             end
         %}
+        
+        if opts.verbose
+            fprintf('Exp[');
+        end
         for m=1:length(models)
             model=models{m};
             opts.method=model;
@@ -103,49 +127,63 @@ for nt=1:length(trainSizes)
             switch model
                 case 'STL'
                     % Single Task Learner
-                    opts.mu=1e-2;
-                    %opts.rho_l1=0;
-                    [W,C] = STLearner(Xtrain, Ytrain,opts);
+                    cv.stl.mu=0.1;
+                    [W,C] = STLearner(Xtrain, Ytrain,cv.stl.mu,opts);
+                    if opts.verbose
+                        fprintf('*');
+                    end
                 case 'MMTL'
                     % Mean multi-task learner
-                    opts.mu=0;
-                    %opts.rho_l1=0;
-                    opts.rho_sr=1e-2;
+                    cv.mmtl.rho_sr=0.1;
                     R=eye (K) - ones (K) / K;
-                    Omega=R*R';
-                    [W,C] = StructMTLearner(Xtrain, Ytrain,Omega,opts);
+                    opts.Omega=R*R';
+                    [W,C] = StructMTLearner(Xtrain, Ytrain,cv.mmtl.rho_sr,opts);
+                    if opts.verbose
+                        fprintf('*');
+                    end
                 case 'SPMMTL'
-                    % Mean multi-task learner
-                    opts.mu=0;
-                    %opts.rho_l1=0;
-                    opts.rho_sr=1e-2;
-                    lambda=0.5;
-                    [W,C] = SPMMTLearner(Xtrain, Ytrain,lambda,opts);
+                    % Self-paced Mean multi-task learner
+                    cv.spmmtl.rho_sr=0.1;
+                    lambda=1;
+                    [W,C,tau] = SPMMTLearner(Xtrain, Ytrain,cv.spmmtl.rho_sr,lambda,opts);
+                    if opts.verbose
+                        fprintf('*');
+                    end
+                    result{m}.tau{rId}=tau;
                 case 'MTFL'
                     % Multi-task Feature Learner
-                    %opts.rho_l1=0;
-                    opts.rho_fr=1e-2;
-                    [W,C] = MTFLearner(Xtrain, Ytrain,opts);
+                    cv.mtfl.rho_fr=0.1;
+                    [W,C, invD] = MTFLearner(Xtrain, Ytrain,cv.mtfl.rho_fr,opts);
+                    if opts.verbose
+                        fprintf('*');
+                    end
                 case 'SPMTFL'
-                    % Multi-task Feature Learner
+                    % Self-paced Multi-task Feature Learner
                     %opts.rho_l1=0;
-                    opts.rho_fr=1e-2;
-                    lambda=0.5;
-                    %lambda=0.0005;
-                    %lambda=5;
-                    [W,C,invD,tau] = SPMTFLearner(Xtrain, Ytrain,lambda,opts);
+                    cv.spmtfl.rho_fr=0.1;
+                    lambda=1;
+                    [W,C,invD,tau] = SPMTFLearner(Xtrain, Ytrain,cv.spmtfl.rho_fr,lambda,opts);
+                    if opts.verbose
+                        fprintf('*');
+                    end
+                    result{m}.tau{rId}=tau;
                 case 'MTRL'
                     % Multi-task Relationship Learner
                     %opts.rho_l1=0;
                     opts.rho_sr=1e-2;
                     [W,C] = MTRLearner(Xtrain, Ytrain,opts);
+                    if opts.verbose
+                        fprintf('*');
+                    end
             end
             result{m}.runtime(nt)=result{m}.runtime(nt)+toc;
             result{m}.model=model;
             result{m}.loss=opts.loss;
             result{m}.opts=opts;
             
-            
+            %------------------------------------------------------------------------
+            %                   Evaluation
+            %------------------------------------------------------------------------
             % Evaluation: Compute Accuracy
             Xtest=X(split.test,:);
             Ytest=Y(split.test);
@@ -182,6 +220,9 @@ for nt=1:length(trainSizes)
             if(opts.debugMode)
                 fprintf('Method: %s, Ntrain: %d, RunId: %d, AUC: %f \n',opts.method,Ntrain,rId,result{m}.score(rId,nt));
             end
+        end
+        if opts.verbose
+            fprintf(']:DONE)\n');
         end
     end
     %%% Per TrainSize Stats

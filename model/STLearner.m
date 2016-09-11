@@ -1,4 +1,4 @@
-function [W,C] = STLearner( X,Y,opts)
+function [W,C] = STLearner( X,Y,mu,opts)
 %% Independent Task Multi-task learning
 % Solve the following objective function
 %
@@ -15,7 +15,7 @@ function [W,C] = STLearner( X,Y,opts)
 % See also <MTSolver.m MTSolver>
 
 debugMode=opts.debugMode;
-mu=opts.mu; % reg. param for squared l2-norm penalty
+% mu: reg. param for squared l2-norm penalty
 rho=0; % reg. param for l1-norm penalty
 if isfield(opts,'rho')
     rho=opts.rho;
