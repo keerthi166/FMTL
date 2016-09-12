@@ -1,56 +1,63 @@
-function [W,C,tauMat] = SPMMTLearner(X,Y,rho_sr,lambda,opts)
-%% Self Paced Multi-task learner
+function [W,C] = SPMTMLearner( X,Y,rho_fr,lambda,opts)
+%% Self-based Manifold-based Multi-task learning
 % Solve the following objective function
 %
-% $$\min_{\mathbf{W},C} \mathcal{L}(Y,\mathcal{F}(X,[\mathbf{W};C])) + \rho_{sr}\mathbf{W}\Omega\mathbf{W}^\top+ \mu||\mathbf{W}||_2^2 +
+% $$\min_{\mathbf{W},C, \mathbf{D} \in \mathcal{C}} \mathcal{L}(Y,\mathcal{F}(X,[\mathbf{W};C])) + \rho_{fr}\mathbf{D}^{-1}(\mathbf{W}\mathbf{W}^\top + \epsilon I_P) +
 % \rho_{l1}||\mathbf{W}||_1^1$$
 %
-% where $X$ and $Y$ are the cell array of size K,
+% where $\mathcal{C}=\{\mathbf{D}|\mathbf{D} \in \mathbf{S}_{++}^P, trace{D}\leq 1\}$
+% $X$ and $Y$ are the cell array of size K,
 % $\mathcal{L}$ is the loss function (given by opts.loss),
 % $C$ is the bias term (1xK) vector,
 % $\mathbf{W}$ is the task parameter (PxK) matrix,
-% $\Omega$ is the task structure parameter (KxK) matrix.
-% $\mu,\rho_{l1},\rho_{sr}$ are the regularization parameters,
+% $D$ is the task feature subspace (PxP) matrix.
+% $\rho_{l1},\rho_{fr}$ are the regularization parameters,
 %
 %
 % See also <MTSolver.m MTSolver>
-
-debugMode=opts.debugMode;
-
-% Regularization Parameters
-%rho_sr :reg. param for structure regularization penalty
-mu=0; % reg. param for l2-norm penalty
-if isfield(opts,'mu')
-    mu=opts.mu;
-end
-rho_l1=0; % reg. param for l1-norm penalty
-if isfield(opts,'rho')
-    rho_l1=opts.rho_l1;
-end
-
-
-loss=opts.loss;
-debugMode=opts.debugMode;
-maxIter=50;
 
 
 K=length(Y);
 N=cellfun(@(y) size(y,1),Y);
 [~,P]=size(getX(1));
 
-selftype='prob';
-obj=0;
-tau=[];
-stepSize=lambda;
-c=1.1;
-tauMat=[];
-Wm=zeros(P,1);
+% Manifold settings
+nIter=10; % Number of iterations used for learning the manifold
+knn=10; % K-nearest neighbor for manifolds
+if knn>=K
+    knn=K-1;
+end
 
+loss=opts.loss;
+debugMode=opts.debugMode;
+maxIter=5;
+
+
+% Regularization Parameters
+%rho_fr: reg. param for feature regularization penalty
+rho_l1=0;%reg. param for l1 regularization penalty
+if isfield(opts,'rho_l1')
+    rho_l1=opts.rho_l1;
+end
+
+rId=sprintf('%s_%s_%d',opts.dataset,opts.method,opts.rId);
+baseLoc='/usr0/home/kmuruges/Research/repos/Code/workspace/FMTL/';
+runScriptPath=sprintf('%s/lib/cems/R',baseLoc);
+paramFilePath=sprintf('%s/results/cems',baseLoc);
+
+obj=0;
+Wm=zeros(P,K);
+selftype='sparse';
+stepSize=lambda;
 for it=1:maxIter
-    % Solve for W
-    [W,C] = MTSolver(X, Y,@grad,@func,@proj,opts);
     
-    % Solve for tau, given W and D
+    % Solve for W given D
+    [W,C] = MTSolver(X, Y,@grad,@func,@proj,opts);
+    opts.Winit=W;
+    opts.W0init=C;
+    
+    
+    % Solve for manifold, given W
     [~,taskF]=func(W,C);
     if strcmp(loss,'least')
         taskF=taskF./N;
@@ -59,23 +66,29 @@ for it=1:maxIter
     if strcmp(selftype,'sparse')
         [~,sortObsIdx]=sort(taskF);
         selTasks=sortObsIdx(1:min(K,lambda));
-        tau=ones(1,K)*0.1;
+        tau=ones(1,K)*0;
         tau(selTasks)=1;
         lambda=lambda+stepSize;
     elseif strcmp(selftype,'weight')
         tau=max((lambda*ones(1,K)-taskF),0.01);
-        lambda=lambda*c;
+        lambda=lambda*1.1;
     elseif strcmp(selftype,'prob')
         tau=exp(-taskF/lambda);
-        lambda=lambda*c;
+        lambda=lambda*1.1;
     end
     if (sum(tau)==0)
         tau=ones(1,K)*0.1;
     end
-    tau=tau./sum(tau);
-    Wm=W*tau';
+    %tau=tau./sum(tau);
     
-    tauMat=[tauMat;tau];
+    
+    Wsub=W(:,logical(tau));
+    [Wm,result]=computeManifoldProjections(Wsub,W,knn,nIter,runScriptPath,paramFilePath,rId);
+    if isempty(Wm)
+        result
+    end
+    
+    
     obj=[obj;func(W,C)];
     relObj = (obj(end)-obj(end-1))/obj(end-1);
     if debugMode
@@ -87,6 +100,7 @@ for it=1:maxIter
         break;
     end
 end
+
 
 % Gradient Function
     function [gW,gW0]=grad(W,W0)
@@ -108,7 +122,7 @@ end
                 % Gradient of Squared Error Loss
                 temp=cell2mat(cellfun(@(t,y,w,n) (([getX(t),ones(n,1)]'*[getX(t),ones(n,1)])*w)-[getX(t),ones(n,1)]'*y,num2cell(1:K),Y,Wcell,Ncell,'UniformOutput',false)); % PxK matrix
         end
-        gW=temp(1:end-1,:)+2*mu*W + 2*rho_sr*(W-repmat(Wm,1,K));
+        gW=temp(1:end-1,:)+2*rho_fr*(W-Wm);
         gW0=temp(end,:);
     end
 
@@ -125,8 +139,8 @@ end
                 % Func of Squared Error Loss
                 temp=cellfun(@(t,w,y,n) 0.5*norm((y - [getX(t),ones(n,1)]*w))^2,num2cell(1:K),Wcell,Y,Ncell,'UniformOutput',false);
         end
-        taskF=cell2mat(cellfun(@(lt,w) lt+rho_sr*((w(1:end-1)-Wm)'*(w(1:end-1)-Wm)),temp,Wcell,'UniformOutput',false));
-        F=sum(cell2mat(temp))+mu*norm(W,'fro')^2 + rho_sr*trace((W-repmat(Wm,1,K))'*(W-repmat(Wm,1,K)));
+        taskF=cell2mat(cellfun(@(lt,t) lt+rho_fr*((W(:,t)-Wm(:,t))'*(W(:,t)-Wm(:,t))),temp,num2cell(1:K),'UniformOutput',false));
+        F=sum(cell2mat(temp))+rho_fr*trace((W-Wm)'*(W-Wm));
     end
 
 
