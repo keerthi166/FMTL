@@ -57,7 +57,7 @@ perform_mat = zeros(length(param1_range),length(param2_range));
 % begin cross validation
 fprintf('[');
 if iscell(X)
-    if strcmp(opts.loss,'least')
+    if strcmp(obj_func_opts.loss,'least')
         cv=cellfun(@(y) cvpartition(size(y,1),'KFold',cv_fold),Y,'UniformOutput',false);
     else
         cv=cellfun(@(y) cvpartition(y,'KFold',cv_fold),Y,'UniformOutput',false);

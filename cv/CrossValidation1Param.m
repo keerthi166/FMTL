@@ -50,14 +50,13 @@ obj_func  = str2func(obj_func_str);
 
 % compute sample size for each task
 task_num = length(Y);
-C=zeros(task_num,1);
 % performance vector
 perform_mat = zeros(length(param_range),1);
 
 % begin cross validation
 fprintf('[');
 if iscell(X)
-    if strcmp(opts.loss,'least')
+    if strcmp(obj_func_opts.loss,'least')
         cv=cellfun(@(y) cvpartition(size(y,1),'KFold',cv_fold),Y,'UniformOutput',false);
     else
         cv=cellfun(@(y) cvpartition(y,'KFold',cv_fold),Y,'UniformOutput',false);
