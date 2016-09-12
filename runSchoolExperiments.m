@@ -173,7 +173,7 @@ for rId=1:Nrun
             case 'SPMMTL'
                 % Self-paced Mean multi-task learner
                 lambda=100;
-                [W,C,tau] = SPMMTLearner(Xtrain, Ytrain,cv.spmmtl.rho_sr,lambda,opts);
+                [W,C,tau] = SPMMTLearner(Xtrain, Ytrain,cv.spmmtl.rho_sr,cv.spmmtl.lambda,opts);
                 if opts.verbose
                     fprintf('*');
                 end
@@ -187,7 +187,7 @@ for rId=1:Nrun
             case 'SPMTFL'
                 % Self-paced Multi-task Feature Learner
                 lambda=100;
-                [W,C,invD,tau] = SPMTFLearner(Xtrain, Ytrain,cv.spmtfl.rho_fr,lambda,opts);
+                [W,C,invD,tau] = SPMTFLearner(Xtrain, Ytrain,cv.spmtfl.rho_fr,cv.spmtfl.lambda,opts);
                 if opts.verbose
                     fprintf('*');
                 end

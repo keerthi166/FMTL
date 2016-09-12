@@ -25,7 +25,7 @@ models={'STL','MMTL','SPMMTL','MTFL','SPMTFL','MTML','SPMTML','MTASO','SPMTASO'}
 
 trainSizes=80; %[30,40,80,160];
 
-opts.loss='logit'; % Choose one: 'logit', 'least', 'hinge'
+opts.loss='hinge'; % Choose one: 'logit', 'least', 'hinge'
 opts.scoreType='perfcurve'; % Choose one: 'perfcurve', 'class', 'mse', 'nmse'
 opts.isHigherBetter=true;
 opts.debugMode=false;
