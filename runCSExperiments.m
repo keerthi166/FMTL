@@ -17,7 +17,7 @@ kFold = 5; % 5 fold cross validation
 
 
 % Model Settings
-models={'STL','MMTL','SPMMTL','MTFL','SPMTFL','MTML','SPMTML'}; % Choose subset: {'STL','MMTL','MTFL','MTRL','MTDict','MTFactor'};
+models={'MTML'};%{'STL','MMTL','SPMMTL','MTFL','SPMTFL','MTML','SPMTML'}; % Choose subset: {'STL','MMTL','MTFL','MTRL','MTDict','MTFactor'};
 
 trainSize=15;
 

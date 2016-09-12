@@ -42,7 +42,7 @@ end
 
 rId=sprintf('%s_%s_%d',opts.dataset,opts.method,opts.rId);
 baseLoc='/usr0/home/kmuruges/Research/repos/Code/workspace/FMTL/';
-runScriptPath=sprintf('%s/lib/cems/R',baseLoc);
+runScriptPath=sprintf('%s/lib/cems',baseLoc);
 paramFilePath=sprintf('%s/results/cems',baseLoc);
 
 obj=0;
