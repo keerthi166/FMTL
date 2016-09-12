@@ -31,6 +31,7 @@ opts.dataset=dataset;
 opts.loss='hinge'; % Choose one: 'logit', 'least', 'hinge'
 opts.debugMode=false;
 opts.verbose=true;
+opts.isHigherBetter=true;
 opts.tol=1e-5;
 opts.maxIter=100; % max iter for Accelerated Grad
 opts.maxOutIter=50; % max iter for alternating optimization
