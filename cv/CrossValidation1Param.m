@@ -57,7 +57,11 @@ perform_mat = zeros(length(param_range),1);
 % begin cross validation
 fprintf('[');
 if iscell(X)
-    cv=cellfun(@(y) cvpartition(y,'KFold',cv_fold),Y,'UniformOutput',false);
+    if strcmp(opts.loss,'least')
+        cv=cellfun(@(y) cvpartition(size(y,1),'KFold',cv_fold),Y,'UniformOutput',false);
+    else
+        cv=cellfun(@(y) cvpartition(y,'KFold',cv_fold),Y,'UniformOutput',false);
+    end
 else
     cv= cvpartition(size(X,1),'KFold',cv_fold); % Shared data representation
 end

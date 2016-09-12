@@ -88,12 +88,14 @@ for rId=1:Nrun
         lambda_range=[1e-3,1e-2,1e-1,1e-0,1e+1,1e+2];
         param_range=[1e-3,1e-2,1e-1,1e-0,1e+1,1e+2,1e+3];
 
+        s
         
         cvDebugFlag=false;
         if (opts.debugMode)
             opts.debugMode=false;
             cvDebugFlag=true;
         end
+        
         [cv.stl.mu,cv.stl.perfMat]=CrossValidation1Param( Xtrain,Ytrain, 'STLearner', opts, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
         [cv.mmtl.rho_sr,cv.mmtl.perfMat]=CrossValidation1Param( Xtrain,Ytrain, 'MMTLearner', opts, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
         [cv.mtfl.rho_fr,cv.mtfl.perfMat]=CrossValidation1Param( Xtrain,Ytrain, 'MTFLearner', opts, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
