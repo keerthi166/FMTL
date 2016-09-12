@@ -9,3 +9,5 @@
 
 # Ignore library folder
 lib/
+!lib/cems/
+results/

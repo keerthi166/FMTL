@@ -17,7 +17,7 @@ kFold = 5; % 5 fold cross validation
 
 
 % Model Settings
-models={'MTML'};%{'STL','MMTL','SPMMTL','MTFL','SPMTFL','MTML','SPMTML'}; % Choose subset: {'STL','MMTL','MTFL','MTRL','MTDict','MTFactor'};
+models={'SPMTASO'};%{'STL','MMTL','SPMMTL','MTFL','SPMTFL','MTML','SPMTML'}; % Choose subset: {'STL','MMTL','MTFL','MTRL','MTDict','MTFactor'};
 
 trainSize=15;
 
@@ -101,7 +101,7 @@ for rId=1:Nrun
 
         [cv.spmmtl.rho_sr,cv.spmmtl.lambda,cv.spmmtl.perfMat]=CrossValidation2Param( Xtrain,Ytrain, 'SPMMTLearner', opts, param_range,lambda_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
         [cv.spmtfl.rho_fr,cv.spmtfl.lambda,cv.spmtfl.perfMat]=CrossValidation2Param( Xtrain,Ytrain, 'SPMTFLearner', opts, param_range,lambda_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
-        [cv.spmtml.rho_fr,cv.spmtml.lambda,cv.spmtml.perfMat]=CrossValidation2Param( Xtrain,Ytrain, 'SPMTMLearner', opts, param_range,(5:5:K-1),kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
+        [cv.spmtml.rho_fr,cv.spmtml.lambda,cv.spmtml.perfMat]=CrossValidation2Param( Xtrain,Ytrain, 'SPMTMLearner', opts, param_range,(5:5:50),kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
         
         
         save(sprintf('cv/%s_cv_%0.2f.mat',dataset,trainSize),'cv');
@@ -173,6 +173,25 @@ for rId=1:Nrun
                 cv.spmtml.rho_fr=1;
                 cv.spmtml.lambda=25;
                 [W,C] = SPMTMLearner(Xtrain, Ytrain,cv.spmtml.rho_fr,cv.spmtml.lambda,opts);
+                if opts.verbose
+                    fprintf('*');
+                end
+            case 'MTASO'
+                % multi-task learner with Alternating Structure
+                % Optimization
+                cv.mtaso.rho_fr=0.1;
+                opts.h=2;
+                [W,C,theta] = MTASOLearner(Xtrain, Ytrain,cv.mtaso.rho_fr,opts);
+                if opts.verbose
+                    fprintf('*');
+                end
+            case 'SPMTASO'
+                % multi-task learner with Alternating Structure
+                % Optimization
+                cv.spmtaso.rho_fr=0.1;
+                cv.spmtaso.lambda=0.1;
+                opts.h=2;
+                [W,C,theta] = SPMTASOLearner(Xtrain, Ytrain,cv.spmtaso.rho_fr,cv.spmtaso.lambda,opts);
                 if opts.verbose
                     fprintf('*');
                 end

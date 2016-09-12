@@ -45,6 +45,8 @@ Wm=zeros(P,1);
 for it=1:maxIter
     % Solve for W
     [W,C] = MTSolver(X, Y,@grad,@func,@proj,opts);
+    opts.Winit=W;
+    opts.W0init=C;
     Wm=mean(W,2);
 end
 

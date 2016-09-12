@@ -4,6 +4,7 @@ clear;
 rng('default');
 
 % Read Synthetic data from Kang et. al.
+dataset='syn1';
 load('data/synthetic/syn_3group_kang.mat')
 
 K= nTask;
@@ -14,7 +15,7 @@ kFold = 5; % 5 fold cross validation
 
 
 % Model Settings
-models={'STL','MMTL','SPMMTL','MTFL','SPMTFL'}; % Choose subset: {'STL','MMTL','MTFL','MTRL','MTDict','MTFactor'};
+models={'STL','MMTL','SPMMTL','MTFL','SPMTFL','MTML','SPMTML'}; % Choose subset: {'STL','MMTL','MTFL','MTRL','MTDict','MTFactor'};
 
 trainSize=15;
 
@@ -31,7 +32,7 @@ end
 %X = cellfun(@(x) [ones(size(x,1),1),x], X, 'uniformOutput', false);
 N=cellfun(@(x) size(x,1),X);
 
-
+opts.dataset=dataset;
 opts.loss='least'; % Choose one: 'logit', 'least', 'hinge'
 opts.scoreType='rmse'; % Choose one: 'perfcurve', 'class', 'mse', 'nmse'
 opts.debugMode=false;
@@ -63,6 +64,7 @@ end
 % Run Id - For Repeated Experiment
 fprintf('Train Size %d\n',trainSize);
 for rId=1:Nrun
+    opts.rId=rId;
     if opts.verbose
         fprintf('Run %d (',rId);
     end
@@ -158,6 +160,21 @@ for rId=1:Nrun
                     fprintf('*');
                 end
                 result{m}.tau{rId}=tau;
+             case 'MTML'
+                % Manifold-based multi-task learner
+                cv.mtml.rho_fr=0.1;
+                [W,C] = MTMLearner(Xtrain, Ytrain,cv.mtml.rho_fr,opts);
+                if opts.verbose
+                    fprintf('*');
+                end
+            case 'SPMTML'
+                % Self-pased Manifold-based multi-task learner
+                cv.spmtml.rho_fr=0.1;
+                cv.spmtml.lambda=10;
+                [W,C] = SPMTMLearner(Xtrain, Ytrain,cv.spmtml.rho_fr,cv.spmtml.lambda,opts);
+                if opts.verbose
+                    fprintf('*');
+                end
             case 'MTRL'
                 % Multi-task Relationship Learner
                 %opts.rho_l1=0;
@@ -215,6 +232,7 @@ for m=1:length(models)
     fprintf('Method: %s, Mean %s: %f, Std %s: %f Runtime: %0.4f\n', result{m}.model,opts.scoreType,result{m}.meanScore,opts.scoreType,result{m}.stdScore,result{m}.runtime);
 end
 
+save(sprintf('results/%s_results_%0.2f.mat',dataset,trainSize),'result');
 
 
 

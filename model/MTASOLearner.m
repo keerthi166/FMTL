@@ -1,5 +1,5 @@
-function [W,C] = MTMLearner( X,Y,rho_fr,opts)
-%% Manifold-based Multi-task learning
+function [U,C, theta] = MTASOLearner( X,Y,rho_fr,opts)
+%% Multi-task learning with Alternating Structure Optimization
 % Solve the following objective function
 %
 % $$\min_{\mathbf{W},C, \mathbf{D} \in \mathcal{C}} \mathcal{L}(Y,\mathcal{F}(X,[\mathbf{W};C])) + \rho_{fr}\mathbf{D}^{-1}(\mathbf{W}\mathbf{W}^\top + \epsilon I_P) +
@@ -19,18 +19,14 @@ function [W,C] = MTMLearner( X,Y,rho_fr,opts)
 
 K=length(Y);
 N=cellfun(@(y) size(y,1),Y);
+H=opts.h;
 [~,P]=size(getX(1));
 
-% Manifold settings
-nIter=10; % Number of iterations used for learning the manifold
-knn=10; % K-nearest neighbor for manifolds
-if knn>=K
-    knn=K-1;
-end
 
 loss=opts.loss;
 debugMode=opts.debugMode;
-maxIter=5;
+maxIter=opts.maxOutIter;
+
 
 
 % Regularization Parameters
@@ -40,33 +36,39 @@ if isfield(opts,'rho_l1')
     rho_l1=opts.rho_l1;
 end
 
-rId=sprintf('%s_%s_%d',opts.dataset,opts.method,opts.rId);
-%baseLoc='/usr0/home/kmuruges/Research/repos/Code/workspace/FMTL/';
-baseLoc=pwd;
-runScriptPath=sprintf('%s/lib/cems',baseLoc);
-paramFilePath=sprintf('%s/results/cems',baseLoc);
 
 obj=0;
-Wm=zeros(P,K);
+U=zeros(P,K);
+theta=randn(H,P);
+
 for it=1:maxIter
     
-    % Solve for W given D
-    [W,C] = MTSolver(X, Y,@grad,@func,@proj,opts);
-    opts.Winit=W;
+    % Solve for V, given Theta and U
+    V=theta*U;
+    
+    % Solve for U given theta and V
+    projU=theta'*V;
+    [U,C] = MTSolver(X, Y,@grad,@func,@proj,opts);
+    opts.Winit=U;
     opts.W0init=C;
     
+    % Solve for Theta, given U
+    U=sqrt(rho_fr)*U; 
     
-    % Solve for manifold, given W
-    [Wm,result]=computeManifoldProjections(W,W,knn,nIter,runScriptPath,paramFilePath,rId);
-    if isempty(Wm)
-       result 
+    % Compute SVD of U
+    [V1,D,V2] = svd(U,'econ');
+    [vals,ind] = sort(diag(D),'descend');
+    if (H>min(P,K))
+        theta = [V1(:,ind(1:min(P,K))) randn(P,H-min(P,K))]';
+    else
+        theta = V1(:,ind(1:H))';
     end
     
     
-    obj=[obj;func(W,C)];
+    obj=[obj;func(U,C)];
     relObj = (obj(end)-obj(end-1))/obj(end-1);
     if debugMode
-        fprintf('OutIteration %d, Objective:%f, Relative Obj:%f \n',it,func(W,C),relObj);
+        fprintf('OutIteration %d, Objective:%f, Relative Obj:%f \n',it,func(U,C),relObj);
     end
     
     %%%% Stopping Criteria
@@ -77,44 +79,44 @@ end
 
 
 % Gradient Function
-    function [gW,gW0]=grad(W,W0)
-        Wcell=mat2cell([W;W0],P+1,ones(1,K));
+    function [gW,gW0]=grad(U,U0)
+        Ucell=mat2cell([U;U0],P+1,ones(1,K));
         Ncell=num2cell(N);
         switch (loss)
             case 'hinge'
                 % Gradient of Hinge Loss
-                Pr=cellfun(@(t,w,n) [getX(t),ones(n,1)]*w,num2cell(1:K),Wcell,Ncell,'UniformOutput',false);
+                Pr=cellfun(@(t,w,n) [getX(t),ones(n,1)]*w,num2cell(1:K),Ucell,Ncell,'UniformOutput',false);
                 a=cellfun(@(p,y) p.*y<1,Pr,Y,'UniformOutput',false); % 1xK cell array
                 temp=cell2mat(cellfun(@(t,y,a,n) (-[getX(t),ones(n,1)]'*diag(a)*y),num2cell(1:K),Y,a,Ncell,'UniformOutput',false))*diag(1./N); % PxK matrix
                 
             case 'logit'
                 % Gradient of Logistic Loss
-                Pr=cellfun(@(t,y,w,n) 1./(1+exp(-([getX(t),ones(n,1)]*w).*y)),num2cell(1:K),Y,Wcell,Ncell,'UniformOutput',false); % 1xK cell array
+                Pr=cellfun(@(t,y,w,n) 1./(1+exp(-([getX(t),ones(n,1)]*w).*y)),num2cell(1:K),Y,Ucell,Ncell,'UniformOutput',false); % 1xK cell array
                 temp=cell2mat(cellfun(@(t,y,a,n) (-[getX(t),ones(n,1)]'*diag(1-a)*y),num2cell(1:K),Y,Pr,Ncell,'UniformOutput',false))*diag(1./N); % PxK matrix
                 
             otherwise
                 % Gradient of Squared Error Loss
-                temp=cell2mat(cellfun(@(t,y,w,n) (([getX(t),ones(n,1)]'*[getX(t),ones(n,1)])*w)-[getX(t),ones(n,1)]'*y,num2cell(1:K),Y,Wcell,Ncell,'UniformOutput',false)); % PxK matrix
+                temp=cell2mat(cellfun(@(t,y,w,n) (([getX(t),ones(n,1)]'*[getX(t),ones(n,1)])*w)-[getX(t),ones(n,1)]'*y,num2cell(1:K),Y,Ucell,Ncell,'UniformOutput',false)); % PxK matrix
         end
-        gW=temp(1:end-1,:)+2*rho_fr*(W-Wm);
+        gW=temp(1:end-1,:)+2*rho_fr*(U-projU);
         gW0=temp(end,:);
     end
 
 % Objective Function
-    function [F,taskF]=func(W,W0)
-        Wcell=mat2cell([W;W0],P+1,ones(1,K));
+    function [F,taskF]=func(U,U0)
+        Ucell=mat2cell([U;U0],P+1,ones(1,K));
         Ncell=num2cell(N);
         switch (loss)
             case 'hinge'
-                temp=cellfun(@(t,w,y,n) mean(max(1-y.*([getX(t),ones(n,1)]*w),0)),num2cell(1:K),Wcell,Y,Ncell,'UniformOutput',false);
+                temp=cellfun(@(t,w,y,n) mean(max(1-y.*([getX(t),ones(n,1)]*w),0)),num2cell(1:K),Ucell,Y,Ncell,'UniformOutput',false);
             case 'logit'
-                temp=cellfun(@(t,w,y,n) mean(log(1+exp(-([getX(t),ones(n,1)]*w).*y))),num2cell(1:K),Wcell,Y,Ncell,'UniformOutput',false);
+                temp=cellfun(@(t,w,y,n) mean(log(1+exp(-([getX(t),ones(n,1)]*w).*y))),num2cell(1:K),Ucell,Y,Ncell,'UniformOutput',false);
             otherwise % Default Least Square Loss
                 % Func of Squared Error Loss
-                temp=cellfun(@(t,w,y,n) 0.5*norm((y - [getX(t),ones(n,1)]*w))^2,num2cell(1:K),Wcell,Y,Ncell,'UniformOutput',false);
+                temp=cellfun(@(t,w,y,n) 0.5*norm((y - [getX(t),ones(n,1)]*w))^2,num2cell(1:K),Ucell,Y,Ncell,'UniformOutput',false);
         end
-        taskF=cellfun(@(lt,t) lt+rho_fr*((W(:,t)-Wm(:,t))'*(W(:,t)-Wm(:,t))),temp,num2cell(1:K),'UniformOutput',false);
-        F=sum(cell2mat(temp))+rho_fr*trace((W-Wm)'*(W-Wm));
+        taskF=cellfun(@(lt,t) lt+rho_fr*(U(:,t)-projU(:,t)),temp,num2cell(1:K),'UniformOutput',false);
+        F=sum(cell2mat(temp))+rho_fr*trace((U-projU)'*(U-projU));
     end
 
 
