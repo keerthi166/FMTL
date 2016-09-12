@@ -11,7 +11,7 @@ load('data/cs/computer_survey_190.mat')
 [N,K]= size(Y);
 Y=mat2cell(Y,N,ones(1,K));
 
-Nrun=1;
+Nrun=10;
 % CV Settings
 kFold = 5; % 5 fold cross validation
 
