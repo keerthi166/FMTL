@@ -39,7 +39,7 @@ opts.verbose=true;
 opts.tol=1e-5;
 opts.maxIter=100;
 opts.maxOutIter=50;
-opts.cv=false;
+opts.cv=true;
 
 cv=[];
 
@@ -106,7 +106,7 @@ for rId=1:Nrun
     %[Xtest,~,~,~] = normalizeMultitaskData(Xtest,[],meanX,stdX);
     
     
-    load(sprintf('cv/%s_cv_%0.2f.mat',dataset,trainSize));
+    %load(sprintf('cv/%s_cv_%0.2f.mat',dataset,trainSize));
     if (isempty(cv) && opts.cv)
         
         %------------------------------------------------------------------------
