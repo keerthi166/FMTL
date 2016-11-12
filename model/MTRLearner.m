@@ -1,4 +1,4 @@
-function [W,C, Omega] = MTRLearner( X,Y,opts)
+function [W,C, Omega] = MTRLearner( X,Y,rho_sr,opts)
 %% Multi-task Relationship learning
 % Solve the following objective function
 %
@@ -31,16 +31,17 @@ epsilon=1e-8;
 
 % Regularization Parameters
 rho_l1=0;
-rho_sr=0.1; %reg. param for feature regularization penalty
-if isfield(opts,'rho_sr')
-    rho_sr=opts.rho_sr;
-end
+%rho_sr=0.1; %reg. param for feature regularization penalty
+%if isfield(opts,'rho_sr')
+%    rho_sr=opts.rho_sr;
+%end
 obj=0;
 for it=1:maxIter
     
     % Solve for W given D
     %[W,C] = MTSolver(X, Y,@grad,@func,@proj,opts);
-    [W,C] = StructMTLearner(X, Y, Omega, opts);
+    opts.Omega=Omega;
+    [W,C] = StructMTLearner(X, Y, rho_sr, opts);
     opts.Winit=W;
     opts.W0init=C;
     % Solve for D, given W

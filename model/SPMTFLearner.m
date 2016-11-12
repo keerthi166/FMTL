@@ -24,7 +24,7 @@ N=cellfun(@(y) size(y,1),Y);
 
 loss=opts.loss;
 debugMode=opts.debugMode;
-maxIter=50;
+maxIter=opts.maxOutIter;
 
 invD=eye(P)/(P);
 epsilon=1e-8;
@@ -38,9 +38,11 @@ end
 
 selftype='prob';
 obj=0;
+c=1.1;
 tau=[];
 stepSize=lambda;
 tauMat=[];
+taskError=[];
 for it=1:maxIter
     
     % Solve for W given D
@@ -53,19 +55,19 @@ for it=1:maxIter
     if strcmp(loss,'least')
         taskF=taskF./N;
     end
-    
+    taskError=[taskError;taskF];
     if strcmp(selftype,'sparse')
         [~,sortObsIdx]=sort(taskF);
         selTasks=sortObsIdx(1:min(K,lambda));
-        tau=ones(1,K)*0.1;
+        tau=ones(1,K)*0.01;
         tau(selTasks)=1;
         lambda=lambda+stepSize;
     elseif strcmp(selftype,'weight')
         tau=max((lambda*ones(1,K)-taskF),0.01);
-        lambda=lambda*1.1;
+        lambda=lambda*c;
     elseif strcmp(selftype,'prob')
         tau=exp(-taskF/lambda);
-        lambda=lambda*1.1;
+        lambda=lambda*c;
     end
     if (sum(tau)==0)
         tau=ones(1,K)*0.1;

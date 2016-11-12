@@ -31,7 +31,7 @@ end
 
 loss=opts.loss;
 debugMode=opts.debugMode;
-maxIter=50;
+maxIter=opts.maxOutIter;
 
 
 K=length(Y);

@@ -1,4 +1,4 @@
-function [W,C,F,G] = MTDictLearner( X,Y,kappa,opts)
+function [W,C,F,G] = MTDictLearner( X,Y,rho_fr,rho_l1,opts)
 %% Multi-task Dictionary learning
 % Solve the following objective function
 %
@@ -23,19 +23,15 @@ loss=opts.loss;
 debugMode=opts.debugMode;
 
 % Regularization Parameters
-rho_l1=0.1; %reg. param for Sparse code regularization on G
-if isfield(opts,'rho_l1')
-    rho_l1=opts.rho_l1;
-end
-rho_fr=0.1; %reg. param for Feature/Dictionary regularization F penalty
-if isfield(opts,'rho_fr')
-    rho_fr=opts.rho_fr;
+kappa=3; %reg. param for Feature/Dictionary regularization F penalty
+if isfield(opts,'kappa')
+    kappa=opts.kappa;
 end
 
 
 % Initialize F, G
-opts.mu=0;
-[W,~]= STLearner(X,Y,opts);
+mu=0;
+[W,~]= STLearner(X,Y,mu,opts);
 [U,E,~] = svd(W,'econ');
 [~,ind] = sort(diag(E),'descend');
 
@@ -49,13 +45,13 @@ end
 opts.Finit=F;
 opts.Ginit=G;
 
-opts.maxIter=20;
+opts.maxIter=50;
 opts.rho=rho_l1;
 vecF=zeros(P*kappa,1);
 for it=1:100
     XF=cellfun(@(x) x*F,X,'UniformOutput',false);
     
-    G= STLearner(XF,Y,opts)';
+    G= STLearner(XF,Y,mu,opts)';
     Gcell=mat2cell(G,ones(1,K),kappa)';
     temp=cellfun(@(x,y,g) 1*x'*y*g,X,Y,Gcell,'UniformOutput',false);
     B=sum(cat(3,temp{:}),3);

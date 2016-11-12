@@ -3,33 +3,55 @@
 clear;
 rng('default');
 
-% Read School data
-dataset='school';
-load('data/school/school_data/school_b.mat')
+% Read Synthetic data from Kang et. al.
+dataset='movielens';
+data=load('data/movielens/movielens-rawdata.mat');
+Xtrain=data.X_tr;
+Ytrain=data.Y_tr;
+Xtest=data.X_te;
+Ytest=data.Y_te;
+clear data;
 
-K= length(task_indexes);
+K=length(Ytrain);
 
-Nrun=10;
+Nrun=1;
 % CV Settings
 kFold = 5; % 5 fold cross validation
 
 
 % Model Settings
 models={'STL','MMTL','SPMMTL','MTFL','SPMTFL','MTML','SPMTML','MTASO','SPMTASO'}; % Choose subset: {'STL','MMTL','MTFL','MTRL','MTDict','MTFactor'};
-trainSize=0.75; % 10% 20% 30%
 
-X=cell(1,K);
-Y=cell(1,K);
-
-task_indexes(end+1)=length(y)+1;
+trainSize=15;
 for tt=1:K
-    X{tt}=x(1:end-1,task_indexes(tt):task_indexes(tt+1)-1)';
-    Y{tt}=y(task_indexes(tt):task_indexes(tt+1)-1);
+    Xtrain{tt}=Xtrain{tt}(:,2:end);
+    Xtest{tt}=Xtest{tt}(:,2:end);
 end
+
+%{
+minVal=Inf;
+maxVal=0;
+for tt=1:K
+    if min(Xtrain{tt}(:,1)) < minVal
+        minVal=min(Xtrain{tt}(:,1));
+    end
+    if max(Xtrain{tt}(:,1)) > maxVal
+        maxVal=max(Xtrain{tt}(:,1));
+    end
+end
+X=[];
+Y=[];
+for tt=1:K
+    Xtrain{tt}(:,1)=(Xtrain{tt}(:,1)-minVal)/(maxVal-minVal);
+    Xtest{tt}(:,1)=(Xtest{tt}(:,1)-minVal)/(maxVal-minVal);
+end
+%}
+%{
 % Add intercept
-X = cellfun(@(x) [ones(size(x,1),1),x], X, 'uniformOutput', false);
-N=cellfun(@(x) size(x,1),X);
-clear task_indexes
+Xtrain = cellfun(@(x) [ones(size(x,1),1),x], Xtrain, 'uniformOutput', false);
+Xtest = cellfun(@(x) [ones(size(x,1),1),x], Xtest, 'uniformOutput', false);
+%}
+N=cellfun(@(x) size(x,1),Xtrain);
 
 opts.dataset=dataset;
 opts.loss='least'; % Choose one: 'logit', 'least', 'hinge'
@@ -39,10 +61,11 @@ opts.debugMode=false;
 opts.verbose=true;
 opts.tol=1e-5;
 opts.maxIter=100;
-opts.maxOutIter=10;
-opts.cv=true;
+opts.maxOutIter=50;
+opts.cv=false;
 
 cv=[];
+
 
 % Initilaization
 result=cell(length(models),1);
@@ -55,6 +78,9 @@ for m=1:length(models)
     result{m}.runtime=0;
 end
 
+
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Run Experiment
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -66,40 +92,6 @@ for rId=1:Nrun
     if opts.verbose
         fprintf('Run %d (',rId);
     end
-    %------------------------------------------------------------------------
-    %                   Train-Test Split
-    %------------------------------------------------------------------------
-    
-    %{
-    % Split Data into train and test
-    split=cellfun(@(n) cvpartition(n,'HoldOut',1-trainSize),num2cell(N),'UniformOutput',false);
-    
-    Xtrain=cellfun(@(x,split_t) {x(split_t.training,:)}, X, split);
-    Ytrain=cellfun(@(y,split_t) {y(split_t.training,:)}, Y,split);
-    Xtest=cellfun(@(x,split_t) {x(split_t.test,:)}, X, split);
-    Ytest=cellfun(@(y,split_t) {y(split_t.test,:)}, Y,split);
-    %}
-    
-    Xtrain=cell(1,K);
-    Ytrain=cell(1,K);
-    Xtest=cell(1,K);
-    Ytest=cell(1,K);
-    % load the default splits used in their experiments
-    load(strcat('school_',num2str(rId),'_indexes'));
-    tempTrX = x(1:27,tr)';
-    tempTrY = y(tr);
-    tempTstX = x(1:27,tst)';
-    tempTstY = y(tst);
-    tr_indexes(end+1)=length(tr)+1;
-    tst_indexes(end+1)=length(tst)+1;
-    for tt=1:K
-        Xtrain{tt}=tempTrX(tr_indexes(tt):tr_indexes(tt+1)-1,:);
-        Ytrain{tt}=tempTrY(tr_indexes(tt):tr_indexes(tt+1)-1);
-        Xtest{tt}=tempTstX(tst_indexes(tt):tst_indexes(tt+1)-1,:);
-        Ytest{tt}=tempTstY(tst_indexes(tt):tst_indexes(tt+1)-1);
-    end
-    clear tempTrX tempTrY tempTstX tempTstY tst tst_indexes;
-    %}
     
     % Normalize Data if needed
     %[Xtrain,~,meanX,stdX] = normalizeMultitaskData(Xtrain);
@@ -107,7 +99,10 @@ for rId=1:Nrun
     %[Xtest,~,~,~] = normalizeMultitaskData(Xtest,[],meanX,stdX);
     
     
-    %load(sprintf('cv/%s_cv_%0.2f.mat',dataset,trainSize));
+    %------------------------------------------------------------------------
+    %                   Cross Validation
+    %------------------------------------------------------------------------
+    load(sprintf('cv/%s_cv_%0.2f_%d.mat',dataset,trainSize,rId));
     if (isempty(cv) && opts.cv)
         
         %------------------------------------------------------------------------
@@ -116,31 +111,35 @@ for rId=1:Nrun
         if opts.verbose
             fprintf('CV');
         end
-        lambda_range=[1,10,25,50,75,100];
+        lambda_range=[1e-3,1e-2,1e-1,1e-0,1e+1,1e+2];
         param_range=[1e-3,1e-2,1e-1,1e-0,1e+1,1e+2,1e+3];
-
+        
         opts.method='cv';
-        opts.h=5;
+        opts.h=2;
         
         cvDebugFlag=false;
         if (opts.debugMode)
             opts.debugMode=false;
             cvDebugFlag=true;
         end
-        [cv.stl.mu,cv.stl.perfMat]=CrossValidation1Param( Xtrain,Ytrain, 'STLearner', opts, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
-        [cv.mmtl.rho_sr,cv.mmtl.perfMat]=CrossValidation1Param( Xtrain,Ytrain, 'MMTLearner', opts, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
-        [cv.mtfl.rho_fr,cv.mtfl.perfMat]=CrossValidation1Param( Xtrain,Ytrain, 'MTFLearner', opts, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
-        [cv.mtml.rho_fr,cv.mtml.perfMat]=CrossValidation1Param( Xtrain,Ytrain, 'MTMLearner', opts, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
-        [cv.mtaso.rho_fr,cv.mtaso.perfMat]=CrossValidation1Param( Xtrain,Ytrain, 'MTASOLearner', opts, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
-
         
-        [cv.spmmtl.rho_sr,cv.spmmtl.lambda,cv.spmmtl.perfMat]=CrossValidation2Param( Xtrain,Ytrain, 'SPMMTLearner', opts, param_range,lambda_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
-        [cv.spmtfl.rho_fr,cv.spmtfl.lambda,cv.spmtfl.perfMat]=CrossValidation2Param( Xtrain,Ytrain, 'SPMTFLearner', opts, param_range,lambda_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
-        [cv.spmtml.rho_fr,cv.spmtml.lambda,cv.spmtml.perfMat]=CrossValidation2Param( Xtrain,Ytrain, 'SPMTMLearner', opts, param_range,[10:5:30],kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
-        [cv.spmtaso.rho_fr,cv.spmtaso.lambda,cv.spmtaso.perfMat]=CrossValidation2Param( Xtrain,Ytrain, 'SPMTASOLearner', opts, param_range,lambda_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
+        cvXtrain=Xtrain(N>30);
+        cvYtrain=Ytrain(N>30);
+        
+        [cv.stl.mu,cv.stl.perfMat]=CrossValidation1Param( cvXtrain,cvYtrain, 'STLearner', opts, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
+        [cv.mmtl.rho_sr,cv.mmtl.perfMat]=CrossValidation1Param( cvXtrain,cvYtrain, 'MMTLearner', opts, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
+        [cv.mtfl.rho_fr,cv.mtfl.perfMat]=CrossValidation1Param( cvXtrain,cvYtrain, 'MTFLearner', opts, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
+        [cv.mtml.rho_fr,cv.mtml.perfMat]=CrossValidation1Param( cvXtrain,cvYtrain, 'MTMLearner', opts, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
+        [cv.mtaso.rho_fr,cv.mtaso.perfMat]=CrossValidation1Param( cvXtrain,cvYtrain, 'MTASOLearner', opts, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
         
         
-        save(sprintf('cv/%s_cv_%0.2f.mat',dataset,trainSize),'cv');
+        [cv.spmmtl.rho_sr,cv.spmmtl.lambda,cv.spmmtl.perfMat]=CrossValidation2Param( cvXtrain,cvYtrain, 'SPMMTLearner', opts, param_range,lambda_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
+        [cv.spmtfl.rho_fr,cv.spmtfl.lambda,cv.spmtfl.perfMat]=CrossValidation2Param( cvXtrain,cvYtrain, 'SPMTFLearner', opts, param_range,lambda_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
+        [cv.spmtml.rho_fr,cv.spmtml.lambda,cv.spmtml.perfMat]=CrossValidation2Param( cvXtrain,cvYtrain, 'SPMTMLearner', opts, param_range,(10:5:25),kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
+        [cv.spmtaso.rho_fr,cv.spmtaso.lambda,cv.spmtaso.perfMat]=CrossValidation2Param( cvXtrain,cvYtrain, 'SPMTASOLearner', opts, param_range,lambda_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
+        
+        
+        save(sprintf('cv/%s_cv_%0.2f_%d.mat',dataset,trainSize,rId),'cv');
         if cvDebugFlag
             opts.debugMode=true;
         end
@@ -174,7 +173,7 @@ for rId=1:Nrun
                 end
             case 'SPMMTL'
                 % Self-paced Mean multi-task learner
-                lambda=100;
+                lambda=0.05;
                 [W,C,tau] = SPMMTLearner(Xtrain, Ytrain,cv.spmmtl.rho_sr,cv.spmmtl.lambda,opts);
                 if opts.verbose
                     fprintf('*');
@@ -188,6 +187,8 @@ for rId=1:Nrun
                 end
             case 'SPMTFL'
                 % Self-paced Multi-task Feature Learner
+                %opts.rho_l1=0;
+                lambda=0.05;
                 [W,C,invD,tau] = SPMTFLearner(Xtrain, Ytrain,cv.spmtfl.rho_fr,cv.spmtfl.lambda,opts);
                 if opts.verbose
                     fprintf('*');
@@ -195,15 +196,12 @@ for rId=1:Nrun
                 result{m}.tau{rId}=tau;
             case 'MTML'
                 % Manifold-based multi-task learner
-                %cv.mtml.rho_fr=1;
                 [W,C] = MTMLearner(Xtrain, Ytrain,cv.mtml.rho_fr,opts);
                 if opts.verbose
                     fprintf('*');
                 end
             case 'SPMTML'
                 % Self-pased Manifold-based multi-task learner
-                %cv.spmtml.rho_fr=1;
-                %cv.spmtml.lambda=25;
                 [W,C] = SPMTMLearner(Xtrain, Ytrain,cv.spmtml.rho_fr,cv.spmtml.lambda,opts);
                 if opts.verbose
                     fprintf('*');
@@ -212,7 +210,7 @@ for rId=1:Nrun
                 % multi-task learner with Alternating Structure
                 % Optimization
                 %cv.mtaso.rho_fr=0.1;
-                opts.h=5;
+                opts.h=2;
                 [W,C,theta] = MTASOLearner(Xtrain, Ytrain,cv.mtaso.rho_fr,opts);
                 if opts.verbose
                     fprintf('*');
@@ -222,8 +220,15 @@ for rId=1:Nrun
                 % Optimization
                 %cv.spmtaso.rho_fr=0.1;
                 %cv.spmtaso.lambda=0.1;
-                opts.h=5;
+                opts.h=2;
                 [W,C,theta] = SPMTASOLearner(Xtrain, Ytrain,cv.spmtaso.rho_fr,cv.spmtaso.lambda,opts);
+                if opts.verbose
+                    fprintf('*');
+                end
+            case 'CL'
+                % Curriculum learner for multiple tasks
+                cv.cl.rho_sr=0.01; % Use rho_sr based on the paper: 1/(2*sqrt(harmmean(N)));
+                [W,C,taskOrder] = CLearner(Xtrain, Ytrain,cv.cl.rho_sr,opts);
                 if opts.verbose
                     fprintf('*');
                 end
@@ -231,26 +236,27 @@ for rId=1:Nrun
                 % Multi-task Relationship Learner
                 %opts.rho_l1=0;
                 opts.rho_sr=0.1;
-                [W,C] = MTRLearner(Xtrain, Ytrain,opts);
+                [W,C, Omega] = MTRLearner(Xtrain, Ytrain,opts);
                 if opts.verbose
                     fprintf('*');
                 end
             case 'MTDict'
                 % Multi-task Dictionary Learner
-                opts.rho_l1=3;
-                opts.rho_fr=1;
-                kappa=5;
-                [W,C] = MTDictLearner(Xtrain, Ytrain,kappa,opts);
+                opts.rho_l1=0.1;
+                opts.rho_fr=0.1;
+                kappa=3;
+                [W,C,F,G] = MTDictLearner(Xtrain, Ytrain,kappa,opts);
                 if opts.verbose
                     fprintf('*');
                 end
             case 'MTFactor'
                 % Multi-task BiFactor Relationship Learner
-                opts.rho_l1=0;
-                opts.rho_fr1=0.0001;
-                opts.rho_fr2=1;
-                kappa=2;
-                [W,C, Sigma, Omega] = BiFactorMTLearner(Xtrain, Ytrain,kappa,opts);
+                opts.rho_l1=3;
+                opts.rho_fr1=1e-5;
+                
+                opts.rho_fr2=1e-4;
+                kappa=3;
+                [W,C,F,G,Sigma, Omega] = BiFactorMTLearner(Xtrain, Ytrain,kappa,opts);
                 if opts.verbose
                     fprintf('*');
                 end
@@ -263,15 +269,14 @@ for rId=1:Nrun
         
         % Compute Area under the ROC curve & Accuracy
         [result{m}.score(rId),result{m}.taskScore(:,rId)]=eval_MTL(Ytest, Xtest, W, C,[], opts.scoreType);
-        if(opts.verbose)
-            fprintf('Method: %s, RunId: %d, %s: %f \n',opts.method,rId,opts.scoreType,result{m}.score(rId));
+        if(opts.debugMode)
+            fprintf('Method: %s, RunId: %d, %s: %f \n',opts.method,rId,opts.scoreType,syn_kang_result(rId));
         end
     end
     if opts.verbose
         fprintf(']:DONE)\n');
     end
 end
-%%% Per TrainSize Stats
 %%% Per TrainSize Stats
 if opts.verbose
     fprintf('Results: \n');
@@ -281,7 +286,6 @@ for m=1:length(models)
     result{m}.stdScore=std(result{m}.score);
     result{m}.meanTaskScore=mean(result{m}.taskScore,2);
     result{m}.stdTaskScore=std(result{m}.taskScore,0,2);
-    result{m}.runtime=result{m}.runtime/Nrun;
     fprintf('Method: %s, Mean %s: %f, Std %s: %f Runtime: %0.4f\n', result{m}.model,opts.scoreType,result{m}.meanScore,opts.scoreType,result{m}.stdScore,result{m}.runtime);
 end
 

@@ -1,4 +1,4 @@
-function [W,C,F,G, Sigma, Omega] = BiFactorMTLearner( X,Y,kappa,opts)
+function [W,C,F,G, Sigma, Omega] = BiFactorMTLearner( X,Y,rho_fr1,rho_fr2,opts)
 %% Multi-task Dictionary learning
 % Solve the following objective function
 %
@@ -23,22 +23,18 @@ loss=opts.loss;
 debugMode=opts.debugMode;
 
 % Regularization Parameters
-rho_l1=0; %reg. param for Sparse code regularization on G
+rho_l1=0.1; %reg. param for l1 penalty
 if isfield(opts,'rho_l1')
     rho_l1=opts.rho_l1;
 end
-rho_fr1=0.1; %reg. param for Feature representation F penalty
-if isfield(opts,'rho_fr1')
-    rho_fr1=opts.rho_fr1;
-end
-rho_fr2=0.1; %reg. param for Task cluster/vector G penalty
-if isfield(opts,'rho_fr2')
-    rho_fr2=opts.rho_fr2;
+kappa=3; %Number of feature/task clusters
+if isfield(opts,'kappa')
+    kappa=opts.kappa;
 end
 
 % Initialize F, G
-opts.mu=0;
-[W,~]= STLearner(X,Y,opts);
+mu=0;
+[W,~]= STLearner(X,Y,mu,opts);
 [U,E,~] = svd(W,'econ');
 [~,ind] = sort(diag(E),'descend');
 
@@ -51,7 +47,7 @@ else
 end
 opts.Finit=F;
 opts.Ginit=G;
-opts.maxIter=20;
+opts.maxIter=50;
 opts.rho=rho_l1;
 opts.rho_sr=rho_fr2;
 
@@ -65,7 +61,8 @@ vecF=zeros(P*kappa,1);
 for it=1:100
     % Solve for G given F
     XF=cellfun(@(x) x*F,X,'UniformOutput',false);
-    G=StructMTLearner(XF,Y,Omega, opts)';
+    opts.Omega=Omega;
+    G=StructMTLearner(XF,Y,rho_fr2, opts)';
     Gcell=mat2cell(G,ones(1,K),kappa)';
     
     % Solve for F, given G
@@ -74,7 +71,7 @@ for it=1:100
     
     [vecF,~,~,~,~]=pcg(@getAX,B(:),1e-6,5,[],[],vecF);
     F = reshape(vecF,P,kappa);
-    %{
+    
     % Solve for Sigma, given F
     [U,S] = eig(F*F'+epsilon*eye(P));
     Smin=sqrt(abs(real(diag(S))));
@@ -86,11 +83,10 @@ for it=1:100
     
     Qmin=sqrt(abs(real(diag(Q))));
     Qmin=Qmin/sum(Qmin);
-    invQmin=1./(Qmin);
-    Omega = V * diag(invQmin) * V';
+    Omega = V * diag(1./(Qmin)) * V';
     %}
-    Sigma = fastOmega(F, epsilon);
-    Omega = fastOmega(G, epsilon);
+    %Sigma = fastOmega(F, epsilon);
+    %Omega = fastOmega(G, epsilon);
     
     
     obj=[obj;func(F,G)];

@@ -89,6 +89,7 @@ for rId=1:Nrun
         param_range=[1e-3,1e-2,1e-1,1e-0,1e+1,1e+2,1e+3];
 
         opts.method='cv';
+        opts.h=2;
         
         cvDebugFlag=false;
         if (opts.debugMode)

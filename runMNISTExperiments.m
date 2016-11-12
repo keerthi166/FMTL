@@ -4,8 +4,8 @@ clear;
 rng('default');
 
 % Read Landmine data
-dataset='usps_1vs1_last';
-load('data/usps/split1_usps_1000train.mat')
+dataset='mnist_1vs1_last';
+load('data/mnist/split1_mnist_1000train.mat')
 X=[digit_trainx;digit_testx];
 Y=[digit_trainy;digit_testy];
 
@@ -24,16 +24,16 @@ kFold = 5; % 5 fold cross validation
 
 
 % Model Settings
-models={'STL','MMTL','SPMMTL','MTFL','SPMTFL','MTML','SPMTML','MTASO','SPMTASO'}; % Choose subset: {'STL','MMTL','MTFL','MTRL','MTDict','MTFactor'};
+models={'STL','MTFL'};%{'STL','MMTL','SPMMTL','MTFL','SPMTFL','MTML','SPMTML','MTASO','SPMTASO'}; % Choose subset: {'STL','MMTL','MTFL','MTRL','MTDict','MTFactor'};
 trainSizes=1000;
 
 opts.dataset=dataset;
 opts.loss='logit'; % Choose one: 'logit', 'least', 'hinge'
-opts.debugMode=false;
+opts.debugMode=true;
 opts.verbose=true;
 opts.isHigherBetter=true;
-opts.tol=1e-5;
-opts.maxIter=50; % max iter for Accelerated Grad
+opts.tol=1e-8;
+opts.maxIter=100; % max iter for Accelerated Grad
 opts.maxOutIter=50; % max iter for alternating optimization
 opts.cv=false;
 
@@ -106,7 +106,7 @@ for nt=1:length(trainSizes)
         %------------------------------------------------------------------------
         
         
-        load(sprintf('cv/%s_cv_%0.2f_%d.mat',dataset,trainSize,1));
+        %load(sprintf('cv/%s_cv_%0.2f_%d.mat',dataset,trainSize,1));
         if opts.cv && isempty(cv)
             if opts.verbose
                 fprintf('CV');
@@ -365,7 +365,7 @@ for nt=1:length(trainSizes)
             %}
             
             if(opts.debugMode)
-                fprintf('Method: %s, Ntrain: %d, RunId: %d, AUC: %f \n',opts.method,Ntrain,rId,result{m}.score(rId,nt));
+                fprintf('Method: %s, RunId: %d, AUC: %f \n',opts.method,rId,result{m}.score(rId,nt));
             end
         end
         if opts.verbose

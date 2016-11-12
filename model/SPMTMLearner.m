@@ -50,6 +50,7 @@ obj=0;
 Wm=zeros(P,K);
 selftype='sparse';
 stepSize=lambda;
+c=1.1;
 for it=1:maxIter
     
     % Solve for W given D
@@ -72,10 +73,10 @@ for it=1:maxIter
         lambda=lambda+stepSize;
     elseif strcmp(selftype,'weight')
         tau=max((lambda*ones(1,K)-taskF),0.01);
-        lambda=lambda*1.1;
+        lambda=lambda*c;
     elseif strcmp(selftype,'prob')
         tau=exp(-taskF/lambda);
-        lambda=lambda*1.1;
+        lambda=lambda*c;
     end
     if (sum(tau)==0)
         tau=ones(1,K)*0.1;

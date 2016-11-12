@@ -45,6 +45,17 @@ elseif strcmp(evalType,'accuracy')
         ct=ct+1;
     end
     eval=eval/ct;
+elseif strcmp(evalType,'multiclass') % Multi-class accuracy measure
+    if isempty(probY)
+        probY=cellfun(@(t) getX(t)*W(:,t)+C(t),num2cell(1:task_num),'UniformOutput',false);
+    end
+    y=zeros(size(Y{1},1),1);
+    for t = 1: task_num
+        y=y+(((Y{t}+1)/2)*t);
+    end
+    [~,Ypred] = max(cell2mat(probY),[],2);
+    corr=sum(Ypred==y);
+    eval=corr/length(y);
 elseif strcmp(evalType,'fmeasure')
     if isempty(probY)
         probY=cellfun(@(t) getX(t)*W(:,t)+C(t),num2cell(1:task_num),'UniformOutput',false);
