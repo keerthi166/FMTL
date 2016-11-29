@@ -1,4 +1,4 @@
-function [W,C,F,G, Sigma, Omega] = BiFactorMTLearner( X,Y,rho_fr1,rho_fr2,opts)
+function [W,C,F,S,G, Sigma, Omega] = TriFactorMTLearner( X,Y,rho_fr1,rho_fr2,opts)
 %% Multi-task Dictionary learning
 % Solve the following objective function
 %
@@ -27,9 +27,13 @@ rho_l1=0.1; %reg. param for l1 penalty
 if isfield(opts,'rho_l1')
     rho_l1=opts.rho_l1;
 end
-kappa=3; %Number of feature/task clusters
-if isfield(opts,'kappa')
-    kappa=opts.kappa;
+kappa1=3; %Number of feature clusters
+if isfield(opts,'kappa1')
+    kappa1=opts.kappa1;
+end
+kappa2=3; %Number of task clusters
+if isfield(opts,'kappa2')
+    kappa2=opts.kappa2;
 end
 
 % Initialize F, G
@@ -38,18 +42,26 @@ mu=0;
 [U,E,~] = svd(W,'econ');
 [~,ind] = sort(diag(E),'descend');
 
-if (kappa>min(P,K))
-    F = [U(:,ind(1:min(P,K))) randn(P,kappa-min(P,K))];
-    G = (pinv(F)*W)';
+if (kappa1>P)
+    F = [U(:,ind(1:P)) randn(P,kappa1-P)];
 else
-    F = U(:,ind(1:kappa)); % Pxkappa matrix
-    G = (F'*W)'; % K*kappa matrix
+    F = U(:,ind(1:kappa1)); % Pxkappa1 matrix
 end
+
+[U,E,~] = svd(W','econ');
+[~,ind] = sort(diag(E),'descend');
+if (kappa2>K)
+    G = [U(:,ind(1:K)) randn(P,kappa2-K)];
+else
+    G = U(:,ind(1:kappa2)); % Kxkappa2 matrix
+end
+
 opts.Finit=F;
 opts.Ginit=G;
 opts.rho=rho_l1;
 opts.rho_sr=rho_fr2;
 maxIter=opts.maxOutIter;
+
 
 Sigma=eye(P)/P;
 Omega=eye(K)/K;
@@ -57,20 +69,29 @@ Omega=eye(K)/K;
 epsilon=1e-8;
 obj=0;
 
-vecF=zeros(P*kappa,1);
+vecF=zeros(P*kappa1,1);
+vecS=zeros(kappa1*kappa2,1);
+Gcell=mat2cell(G,ones(1,K),kappa2)';
 for it=1:maxIter
-    % Solve for G given F
-    XF=cellfun(@(x) x*F,X,'UniformOutput',false);
-    opts.Omega=Omega;
-    G=StructMTLearner(XF,Y,rho_fr2, opts)';
-    Gcell=mat2cell(G,ones(1,K),kappa)';
+    % Solve for S given (G,F)
+    S=[];   % Kappa1xKappa2
+    temp=cellfun(@(x,y,g) 1*F'*x'*y*g,X,Y,Gcell,'UniformOutput',false);
+    B=sum(cat(3,temp{:}),3);
+    [vecS,~,~,~,~]=pcg(@getAS,B(:),1e-6,5,[],[],vecS);
+    S = reshape(vecS,kappa1,kappa2);
     
-    % Solve for F, given G
-    temp=cellfun(@(x,y,g) 1*x'*y*g,X,Y,Gcell,'UniformOutput',false);
+    % Solve for G given (F,S)
+    XFS=cellfun(@(x) (x*F)*S,X,'UniformOutput',false);
+    opts.Omega=Omega;
+    G=StructMTLearner(XFS,Y,rho_fr2, opts)';
+    Gcell=mat2cell(G,ones(1,K),kappa2)';
+    
+    % Solve for F, given (G,S)
+    temp=cellfun(@(x,y,g) 1*x'*y*g*S',X,Y,Gcell,'UniformOutput',false);
     B=sum(cat(3,temp{:}),3);
     
-    [vecF,~,~,~,~]=pcg(@getAX,B(:),1e-6,5,[],[],vecF);
-    F = reshape(vecF,P,kappa);
+    [vecF,~,~,~,~]=pcg(@getAF,B(:),1e-6,5,[],[],vecF);
+    F = reshape(vecF,P,kappa1);
     %{
     % Solve for Sigma, given F
     [U,S] = eig(F*F'+epsilon*eye(P));
@@ -89,7 +110,7 @@ for it=1:maxIter
     Omega = fastOmega(G, epsilon);
     
     
-    obj=[obj;func(F,G)];
+    obj=[obj;func(F,S,G)];
     relObj = (obj(end)-obj(end-1))/obj(end-1);
     if mod(it,5)==0 && debugMode
         fprintf('Iteration %d, Objective:%f, Relative Obj:%f \n',it,obj(end),relObj);
@@ -101,19 +122,26 @@ for it=1:maxIter
     end
     
 end
-W=F*G';
+W=F*S*G';
 C=zeros(1,K);
 
 % Fast Computation of AX for solving AX=B via CG
-    function vecAx=getAX(vecF)
-        Fmat=reshape(vecF,P,kappa);
-        temp1=cellfun(@(x,g) (x'*x)*Fmat*(g'*g)+rho_fr1*Sigma*Fmat,X,Gcell,'UniformOutput',false);
+    function vecAx=getAF(vecF)
+        Fmat=reshape(vecF,P,kappa1);
+        temp1=cellfun(@(x,g) (x'*x)*Fmat*((g*S')'*(g*S'))+rho_fr1*Sigma*Fmat,X,Gcell,'UniformOutput',false);
+        matAx=sum(cat(3,temp1{:}),3);
+        vecAx=matAx(:);
+    end
+
+    function vecAx=getAS(vecS)
+        matS=reshape(vecS,kappa1,kappa2);
+        temp1=cellfun(@(x,g) ((x*F)'*(x*F))*matS*(g'*g),X,Gcell,'UniformOutput',false);
         matAx=sum(cat(3,temp1{:}),3);
         vecAx=matAx(:);
     end
 % Compute Objective function
-    function Fobj=func(F,G)
-        Wcell=mat2cell(F*G',P,ones(1,K));
+    function Fobj=func(F,S,G)
+        Wcell=mat2cell(F*S*G',P,ones(1,K));
         Ncell=num2cell(N);
         switch (loss)
             case 'hinge'
@@ -132,14 +160,14 @@ C=zeros(1,K);
         % fast way to compute Omega using thin SVD
         %
         %
-        [U, S] = svd(W, 0);
-        S = diag(S);
-        S = S .^ 2 ; %W'*W: eigenvalues
-        S = S + epsilon; %W'*W + epsilon: eigenvalues
-        S = sqrt(S);    % square root of W*W'+epsilon: sqrt
-        totalTrace = sum(S) + sqrt(epsilon)*(size(W,2)-length(S));  % trace
-        S = S /totalTrace; % normalize such that D will have trace of 1
-        omega = U*diag(1./S)*U';
+        [U, S1] = svd(W, 0);
+        S1 = diag(S1);
+        S1 = S1 .^ 2 ; %W'*W: eigenvalues
+        S1 = S1 + epsilon; %W'*W + epsilon: eigenvalues
+        S1 = sqrt(S1);    % square root of W*W'+epsilon: sqrt
+        totalTrace = sum(S1) + sqrt(epsilon)*(size(W,2)-length(S1));  % trace
+        S1 = S1 /totalTrace; % normalize such that D will have trace of 1
+        omega = U*diag(1./S1)*U';
     end
 end
 

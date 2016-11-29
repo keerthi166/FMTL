@@ -24,7 +24,7 @@ N=cellfun(@(x) size(x,1),X);
 
 loss=opts.loss;
 debugMode=opts.debugMode;
-maxIter=25;
+maxIter=opts.maxOutIter;
 
 Omega=eye(K)/(K);
 epsilon=1e-8;

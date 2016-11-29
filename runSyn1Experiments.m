@@ -15,7 +15,7 @@ kFold = 5; % 5 fold cross validation
 
 
 % Model Settings
-models={'STL','MMTL','MTFL','MTRL','MTDict','MTFactor'};%{'CL','ELLA1','ELLA2','ELLA3','ELLA4','MTDict'};%{'STL','MMTL','SPMMTL','MTFL','SPMTFL','MTML','SPMTML','MTASO','SPMTASO'}; % Choose subset: {'STL','MMTL','MTFL','MTRL','MTDict','MTFactor'};
+models={'STL','MMTL','MTFL','MTRL','MTDict','MTFactor','TriFactor'};%{'CL','ELLA1','ELLA2','ELLA3','ELLA4','MTDict'};%{'STL','MMTL','SPMMTL','MTFL','SPMTFL','MTML','SPMTML','MTASO','SPMTASO'}; % Choose subset: {'STL','MMTL','MTFL','MTRL','MTDict','MTFactor'};
 
 trainSize=15;
 
@@ -40,8 +40,8 @@ opts.debugMode=false;
 opts.verbose=true;
 opts.tol=1e-5;
 opts.maxIter=100;
-opts.maxOutIter=50;
-opts.cv=true;
+opts.maxOutIter=10;
+opts.cv=false;
 
 cv=[];
 
@@ -93,8 +93,8 @@ for rId=1:Nrun
     %------------------------------------------------------------------------
     %                   Cross Validation
     %------------------------------------------------------------------------
-    %load(sprintf('cv/%s_cv_%0.2f.mat',dataset,trainSize));
-    cv=[];
+    %load(sprintf('cv/%s_cv_%0.2f_%d.mat',dataset,trainSize,1));
+    %cv=[];
     if (isempty(cv) && opts.cv)
         
         %------------------------------------------------------------------------
@@ -104,12 +104,13 @@ for rId=1:Nrun
             fprintf('CV');
         end
         lambda_range=[1e-3,1e-2,1e-1,1e-0,1e+1,1e+2,1e+3];
-        param_range=[1e-3,1e-2,1e-1,1e-0,1e+1,1e+2,1e+3];
+        param_range=[1e-7,1e-6,1e-5,1e-4,1e-3,1e-2,1e-1,1e-0,1e+1,1e+2,1e+3];
         
         opts.method='cv';
         opts.h=2;
-        opts.kappa=3;
-        opts.rho_l1=0;
+        opts.kappa=5;
+        opts.kappa1=5;
+        opts.kappa2=5;
         
         cvDebugFlag=false;
         if (opts.debugMode)
@@ -121,8 +122,10 @@ for rId=1:Nrun
         [cv.mtfl.rho_fr,cv.mtfl.perfMat]=CrossValidation1Param( Xtrain,Ytrain, 'MTFLearner', opts, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
         [cv.mtrl.rho_sr,cv.mtrl.perfMat]=CrossValidation1Param( Xtrain,Ytrain, 'MTRLearner', opts, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
         [cv.mtdict.rho_fr,cv.mtdict.rho_l1,cv.mtdict.perfMat]=CrossValidation2Param( Xtrain,Ytrain, 'MTDictLearner', opts, param_range, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
+        opts.rho_l1=0;
         [cv.mtfactor.rho_fr1,cv.mtfactor.rho_fr2,cv.mtfactor.perfMat]=CrossValidation2Param( Xtrain,Ytrain, 'BiFactorMTLearner', opts, param_range, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
-        
+        [cv.trifactor.rho_fr1,cv.trifactor.rho_fr2,cv.trifactor.perfMat]=CrossValidation2Param( Xtrain,Ytrain, 'TriFactorMTLearner', opts, param_range, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
+
         
         %[cv.mtml.rho_fr,cv.mtml.perfMat]=CrossValidation1Param( Xtrain,Ytrain, 'MTMLearner', opts, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
         %[cv.mtaso.rho_fr,cv.mtaso.perfMat]=CrossValidation1Param( Xtrain,Ytrain, 'MTASOLearner', opts, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
@@ -249,16 +252,25 @@ for rId=1:Nrun
                 end
             case 'MTDict'
                 % Multi-task Dictionary Learner
-                opts.kappa=3;
+                opts.kappa=5;
                 [W,C,F,G] = MTDictLearner(Xtrain, Ytrain,cv.mtdict.rho_fr,cv.mtdict.rho_l1,opts);
                 if opts.verbose
                     fprintf('*');
                 end
             case 'MTFactor'
                 % Multi-task BiFactor Relationship Learner
-                opts.kappa=3;
+                opts.kappa=5;
                 opts.rho_l1=0;
                 [W,C,F,G,Sigma, Omega] = BiFactorMTLearner(Xtrain, Ytrain,cv.mtfactor.rho_fr1,cv.mtfactor.rho_fr2,opts);
+                if opts.verbose
+                    fprintf('*');
+                end
+            case 'TriFactor'
+                % Multi-task TriFactor Relationship Learner
+                opts.kappa1=5;
+                opts.kappa2=5;
+                opts.rho_l1=0;
+                [W,C,F,S,G,Sigma, Omega] = TriFactorMTLearner(Xtrain, Ytrain,cv.trifactor.rho_fr1,cv.trifactor.rho_fr2,opts);
                 if opts.verbose
                     fprintf('*');
                 end

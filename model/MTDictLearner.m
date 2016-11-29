@@ -44,11 +44,12 @@ else
 end
 opts.Finit=F;
 opts.Ginit=G;
+maxIter=opts.maxOutIter;
 
-opts.maxIter=50;
+
 opts.rho=rho_l1;
 vecF=zeros(P*kappa,1);
-for it=1:100
+for it=1:maxIter
     XF=cellfun(@(x) x*F,X,'UniformOutput',false);
     
     G= STLearner(XF,Y,mu,opts)';
@@ -58,6 +59,17 @@ for it=1:100
     
     [vecF,~,~,~,~]=pcg(@getAX,B(:),1e-6,5,[],[],vecF);
     F = reshape(vecF,P,kappa);
+    
+    obj=[obj;func(F,G)];
+    relObj = (obj(end)-obj(end-1))/obj(end-1);
+    if mod(it,5)==0 && debugMode
+        fprintf('Iteration %d, Objective:%f, Relative Obj:%f \n',it,obj(end),relObj);
+    end
+    
+    %%%% Stopping Criteria
+    if (abs(relObj) <= opts.tol)
+        break;
+    end
 end
 W=F*G';
 C=zeros(1,K);
