@@ -41,7 +41,7 @@ opts.verbose=true;
 opts.tol=1e-5;
 opts.maxIter=100;
 opts.maxOutIter=10;
-opts.cv=false;
+opts.cv=true;
 
 cv=[];
 
@@ -93,7 +93,7 @@ for rId=1:Nrun
     %------------------------------------------------------------------------
     %                   Cross Validation
     %------------------------------------------------------------------------
-    %load(sprintf('cv/%s_cv_%0.2f_%d.mat',dataset,trainSize,1));
+    %load(sprintf('cv/%s_cv_%0.2f_%d-new.mat',dataset,trainSize,1));
     %cv=[];
     if (isempty(cv) && opts.cv)
         
@@ -104,13 +104,13 @@ for rId=1:Nrun
             fprintf('CV');
         end
         lambda_range=[1e-3,1e-2,1e-1,1e-0,1e+1,1e+2,1e+3];
-        param_range=[1e-7,1e-6,1e-5,1e-4,1e-3,1e-2,1e-1,1e-0,1e+1,1e+2,1e+3];
+        param_range=[1e-3,1e-2,1e-1,1e-0,1e+1,1e+2,1e+3];
         
         opts.method='cv';
-        opts.h=2;
-        opts.kappa=5;
+        opts.h=3;
+        opts.kappa=3;
         opts.kappa1=5;
-        opts.kappa2=5;
+        opts.kappa2=3;
         
         cvDebugFlag=false;
         if (opts.debugMode)
@@ -135,7 +135,7 @@ for rId=1:Nrun
         %[cv.spmtaso.rho_fr,cv.spmtaso.lambda,cv.spmtaso.perfMat]=CrossValidation2Param( Xtrain,Ytrain, 'SPMTASOLearner', opts, param_range,lambda_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
         
         
-        save(sprintf('cv/%s_cv_%0.2f_%d.mat',dataset,trainSize,rId),'cv');
+        save(sprintf('cv/%s_cv_%0.2f_%d-new.mat',dataset,trainSize,rId),'cv');
         if cvDebugFlag
             opts.debugMode=true;
         end
@@ -252,24 +252,27 @@ for rId=1:Nrun
                 end
             case 'MTDict'
                 % Multi-task Dictionary Learner
-                opts.kappa=5;
+                opts.kappa=3;
+                cv.mtdict.rho_l1=0.1;
                 [W,C,F,G] = MTDictLearner(Xtrain, Ytrain,cv.mtdict.rho_fr,cv.mtdict.rho_l1,opts);
                 if opts.verbose
                     fprintf('*');
                 end
             case 'MTFactor'
                 % Multi-task BiFactor Relationship Learner
-                opts.kappa=5;
+                opts.kappa=3;
                 opts.rho_l1=0;
+                cv.mtfactor.rho_fr2=0.1;
                 [W,C,F,G,Sigma, Omega] = BiFactorMTLearner(Xtrain, Ytrain,cv.mtfactor.rho_fr1,cv.mtfactor.rho_fr2,opts);
                 if opts.verbose
                     fprintf('*');
                 end
             case 'TriFactor'
                 % Multi-task TriFactor Relationship Learner
-                opts.kappa1=5;
-                opts.kappa2=5;
+                opts.kappa1=10;
+                opts.kappa2=3;
                 opts.rho_l1=0;
+                cv.trifactor.rho_fr2=0.1;
                 [W,C,F,S,G,Sigma, Omega] = TriFactorMTLearner(Xtrain, Ytrain,cv.trifactor.rho_fr1,cv.trifactor.rho_fr2,opts);
                 if opts.verbose
                     fprintf('*');
@@ -284,7 +287,7 @@ for rId=1:Nrun
         % Compute Area under the ROC curve & Accuracy
         [result{m}.score(rId),result{m}.taskScore(:,rId)]=eval_MTL(Ytest, Xtest, W, C,[], opts.scoreType);
         if(opts.debugMode)
-            fprintf('Method: %s, RunId: %d, %s: %f \n',opts.method,rId,opts.scoreType,syn_kang_result(rId));
+            fprintf('Method: %s, RunId: %d, %s: %f \n',opts.method,rId,opts.scoreType,result{m}.score(rId));
         end
     end
     if opts.verbose

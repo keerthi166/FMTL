@@ -69,7 +69,7 @@ for it=1:maxIter
     temp=cellfun(@(x,y,g) 1*x'*y*g,X,Y,Gcell,'UniformOutput',false);
     B=sum(cat(3,temp{:}),3);
     
-    [vecF,~,~,~,~]=pcg(@getAX,B(:),1e-6,5,[],[],vecF);
+    [vecF,~,~,~,~]=pcg(@getAX,B(:),1e-10,200,[],[],vecF);
     F = reshape(vecF,P,kappa);
     %{
     % Solve for Sigma, given F
@@ -91,7 +91,7 @@ for it=1:maxIter
     
     obj=[obj;func(F,G)];
     relObj = (obj(end)-obj(end-1))/obj(end-1);
-    if mod(it,5)==0 && debugMode
+    if mod(it,1)==0 && debugMode
         fprintf('Iteration %d, Objective:%f, Relative Obj:%f \n',it,obj(end),relObj);
     end
     

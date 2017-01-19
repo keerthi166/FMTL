@@ -42,7 +42,7 @@ mu=0;
 [U,E,~] = svd(W,'econ');
 [~,ind] = sort(diag(E),'descend');
 
-if (kappa1>P)
+if (kappa1>min(P,K))
     F = [U(:,ind(1:P)) randn(P,kappa1-P)];
 else
     F = U(:,ind(1:kappa1)); % Pxkappa1 matrix
@@ -50,7 +50,7 @@ end
 
 [U,E,~] = svd(W','econ');
 [~,ind] = sort(diag(E),'descend');
-if (kappa2>K)
+if (kappa2>min(P,K))
     G = [U(:,ind(1:K)) randn(P,kappa2-K)];
 else
     G = U(:,ind(1:kappa2)); % Kxkappa2 matrix
@@ -77,7 +77,7 @@ for it=1:maxIter
     S=[];   % Kappa1xKappa2
     temp=cellfun(@(x,y,g) 1*F'*x'*y*g,X,Y,Gcell,'UniformOutput',false);
     B=sum(cat(3,temp{:}),3);
-    [vecS,~,~,~,~]=pcg(@getAS,B(:),1e-6,5,[],[],vecS);
+    [vecS,~,~,~,~]=pcg(@getAS,B(:),1e-10,200,[],[],vecS);
     S = reshape(vecS,kappa1,kappa2);
     
     % Solve for G given (F,S)
@@ -112,7 +112,7 @@ for it=1:maxIter
     
     obj=[obj;func(F,S,G)];
     relObj = (obj(end)-obj(end-1))/obj(end-1);
-    if mod(it,5)==0 && debugMode
+    if mod(it,1)==0 && debugMode
         fprintf('Iteration %d, Objective:%f, Relative Obj:%f \n',it,obj(end),relObj);
     end
     

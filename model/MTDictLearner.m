@@ -49,6 +49,7 @@ maxIter=opts.maxOutIter;
 
 opts.rho=rho_l1;
 vecF=zeros(P*kappa,1);
+obj=0;
 for it=1:maxIter
     XF=cellfun(@(x) x*F,X,'UniformOutput',false);
     
@@ -57,12 +58,12 @@ for it=1:maxIter
     temp=cellfun(@(x,y,g) 1*x'*y*g,X,Y,Gcell,'UniformOutput',false);
     B=sum(cat(3,temp{:}),3);
     
-    [vecF,~,~,~,~]=pcg(@getAX,B(:),1e-6,5,[],[],vecF);
+    [vecF,~,~,~,~]=pcg(@getAX,B(:),1e-10,200,[],[],vecF);
     F = reshape(vecF,P,kappa);
     
     obj=[obj;func(F,G)];
     relObj = (obj(end)-obj(end-1))/obj(end-1);
-    if mod(it,5)==0 && debugMode
+    if mod(it,1)==0 && debugMode
         fprintf('Iteration %d, Objective:%f, Relative Obj:%f \n',it,obj(end),relObj);
     end
     
@@ -82,6 +83,22 @@ C=zeros(1,K);
         vecAx=matAx(:);
     end
 
+% Objective Function
+    function F=func(F,G)
+        W=F*G';
+        Wcell=mat2cell(W,P,ones(1,K));
+        Ncell=num2cell(N);
+        switch (loss)
+            case 'hinge'
+                temp=cellfun(@(x,w,y,n) mean(max(1-y.*(x*w),0)),X,Wcell,Y,Ncell,'UniformOutput',false);
+            case 'logit'
+                temp=cellfun(@(x,w,y,n) mean(log(1+exp(-(x*w).*y))),X,Wcell,Y,Ncell,'UniformOutput',false);
+            otherwise % Default Least Square Loss
+                % Func of Squared Error Loss
+                temp=cellfun(@(x,w,y,n) 0.5*norm((y - x*w))^2,X,Wcell,Y,Ncell,'UniformOutput',false);
+        end
+        F=sum(cell2mat(temp))+rho_fr*norm(F,'fro')^2;
+    end
 
 %{
 % Gradient Function
