@@ -100,7 +100,7 @@ end
                 % Func of Squared Error Loss
                 temp=cellfun(@(x,w,y,n) 0.5*norm((y - [x,ones(n,1)]*w))^2,X,Wcell,Y,Ncell,'UniformOutput',false);
         end
-        F=sum(cell2mat(temp))+rho_sr*trace(W*Omega*W');
+        F=sum(cell2mat(temp))+rho_sr*trace((W'*W)*Omega);
     end
 
 

@@ -82,7 +82,7 @@ loss=opts.loss;
                 % Func of Squared Error Loss
                 temp=cellfun(@(t,w,y,n) 0.5*norm((y - [getX(t),ones(n,1)]*w))^2,num2cell(1:K),Wcell,Y,Ncell,'UniformOutput',false);
         end
-        F=sum(cell2mat(temp))+mu*norm(W,'fro')^2 + rho_sr*trace(W*Omega*W');
+        F=sum(cell2mat(temp))+mu*norm(W,'fro')^2 + rho_sr*trace((W'*W)*Omega);
     end
 
 

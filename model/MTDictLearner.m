@@ -30,8 +30,8 @@ end
 
 
 % Initialize F, G
-mu=0;
-[W,~]= STLearner(X,Y,mu,opts);
+mu=0;[W,~]= STLearner(X,Y,mu,opts);
+
 [U,E,~] = svd(W,'econ');
 [~,ind] = sort(diag(E),'descend');
 
@@ -49,16 +49,26 @@ maxIter=opts.maxOutIter;
 
 opts.rho=rho_l1;
 vecF=zeros(P*kappa,1);
+S=zeros(kappa,K);
+funObjmtl = @(st,xt,yt,F)regL1Objmtl(st,xt,yt,F);
+
+
 obj=0;
 for it=1:maxIter
     XF=cellfun(@(x) x*F,X,'UniformOutput',false);
+    %opts.maxIter=25;
+    %G= STLearner(XF,Y,mu,opts)';
     
-    G= STLearner(XF,Y,mu,opts)';
+    for tt=1:K
+        S(:,tt) =  L1GeneralProjection(funObjmtl,S(:,tt),rho_l1*ones(kappa,1),[], XF{tt},Y{tt},F);
+    end
+    G=S';
+    %}
     Gcell=mat2cell(G,ones(1,K),kappa)';
     temp=cellfun(@(x,y,g) 1*x'*y*g,X,Y,Gcell,'UniformOutput',false);
     B=sum(cat(3,temp{:}),3);
-    
-    [vecF,~,~,~,~]=pcg(@getAX,B(:),1e-10,200,[],[],vecF);
+    %vecF = linsolve(AX, B(:));
+    [vecF,~,~,~,~]=pcg(@getAX,B(:),[],[],[],[],vecF);
     F = reshape(vecF,P,kappa);
     
     obj=[obj;func(F,G)];
@@ -84,7 +94,7 @@ C=zeros(1,K);
     end
 
 % Objective Function
-    function F=func(F,G)
+    function Fn=func(F,G)
         W=F*G';
         Wcell=mat2cell(W,P,ones(1,K));
         Ncell=num2cell(N);
@@ -97,9 +107,17 @@ C=zeros(1,K);
                 % Func of Squared Error Loss
                 temp=cellfun(@(x,w,y,n) 0.5*norm((y - x*w))^2,X,Wcell,Y,Ncell,'UniformOutput',false);
         end
-        F=sum(cell2mat(temp))+rho_fr*norm(F,'fro')^2;
+        Fn=sum(cell2mat(temp))+0.5*rho_fr*norm(F,'fro')^2;
     end
 
+    function [val,grad,H]= regL1Objmtl(St,Xt,Yt,F)
+        res = Yt - Xt*St;
+        val = (res'*res);
+        grad = (Xt'*Xt*St - Xt'*Yt) ;
+        if (nargout > 2)
+            H = (Xt'*Xt) ;
+        end
+    end
 %{
 % Gradient Function
 function [gF,gG]=grad(F,G)

@@ -9,60 +9,156 @@ dataset='sentiment';
 %load('data/sentiment/sentiment_analysis.mat')
 load('data/sentiment/reduced_sentiment_data.mat')
 
+
+
+nsplits=2;
+nth=2;
+
 taskIds=unique(tasks);
-K=length(taskIds);
-
-X=cell(1,K);
-Y=cell(1,K);
-
-
-for tt=1:K 
-    X{tt}=feat(tasks==taskIds(tt),cv_featsel);
-    Y{tt}=target(tasks==taskIds(tt))';
+nDomains=length(taskIds);
+X=cell(1,nsplits*nDomains);
+Y=cell(1,nsplits*nDomains);
+lt=1;
+for tt=1:nDomains
+    s1=randperm(250);
+    s2=250+randperm(250);
+    s4=500+randperm(250);
+    s5=750+randperm(250);
+    data=feat(tasks==taskIds(tt),cv_featsel);
+    val=target(tasks==taskIds(tt))';
+    switch nsplits
+        case 1
+            % Use each domain as a single task
+            X{lt}=data;
+            Y{lt}=2*(val>3)-1;
+            trainSize=250;
+        case 2
+            % Split each domain to 2 and use 2 thresholds
+            
+            
+            
+            t1Idx=[s1(1:120),s2(1:120),s4(1:120),s5(1:120)];
+            t2Idx=[s1(121:240),s2(121:240),s4(121:240),s5(121:240)];
+            X{lt}=data(t1Idx,:);
+            Y{lt}=2*(val(t1Idx)==5)-1;
+            X{lt+1}=data(t2Idx,:);
+            Y{lt+1}=2*(val(t2Idx)==1)-1;
+            trainSize=120; % Number of training instances
+            
+        case 3
+            % Split each domain to 3 and use 3 thresholds
+            
+            t1Idx=[s1(1:80),s2(1:80),s4(1:80),s5(1:80)];
+            t2Idx=[s1(81:160),s2(81:160),s4(81:160),s5(81:160)];
+            t3Idx=[s1(161:240),s2(161:240),s4(161:240),s5(161:240)];
+            X{lt}=data(t1Idx,:);
+            Y{lt}=2*(val(t1Idx)==5)-1;
+            X{lt+1}=data(t2Idx,:);
+            Y{lt+1}=2*(val(t2Idx)>3)-1;
+            X{lt+2}=data(t3Idx,:);
+            Y{lt+2}=2*(val(t3Idx)==1)-1;
+            trainSize=80; % Number of training instances
+        case 4
+            % Split each domain to 4 and use 2 thresholds
+            
+            t1Idx=[s1(1:60),s2(1:60),s4(1:60),s5(1:60)];
+            t2Idx=[s1(61:120),s2(61:120),s4(61:120),s5(61:120)];
+            t3Idx=[s1(121:180),s2(121:180),s4(121:180),s5(121:180)];
+            t4Idx=[s1(181:240),s2(181:240),s4(181:240),s5(181:240)];
+            X{lt}=data(t1Idx,:);
+            Y{lt}=2*(val(t1Idx)==5)-1;
+            X{lt+1}=data(t2Idx,:);
+            Y{lt+1}=2*(val(t2Idx)==1)-1;
+            X{lt+2}=data(t3Idx,:);
+            Y{lt+2}=2*(val(t3Idx)==5)-1;
+            X{lt+3}=data(t4Idx,:);
+            Y{lt+3}=2*(val(t4Idx)==1)-1;
+            trainSize=60; % Number of training instances
+        case 6
+            % Split each domain to 6 and use 2/3 thresholds
+            
+            t1Idx=[s1(1:40),s2(1:40),s4(1:40),s5(1:40)];
+            t2Idx=[s1(41:80),s2(41:80),s4(41:80),s5(41:80)];
+            t3Idx=[s1(81:120),s2(81:120),s4(81:120),s5(81:120)];
+            t4Idx=[s1(121:160),s2(121:160),s4(121:160),s5(121:160)];
+            t5Idx=[s1(161:200),s2(161:200),s4(161:200),s5(161:200)];
+            t6Idx=[s1(201:240),s2(201:240),s4(201:240),s5(201:240)];
+            if nth==2
+                X{lt}=data(t1Idx,:);
+                Y{lt}=2*(val(t1Idx)==5)-1;
+                X{lt+1}=data(t2Idx,:);
+                Y{lt+1}=2*(val(t2Idx)==1)-1;
+                X{lt+2}=data(t3Idx,:);
+                Y{lt+2}=2*(val(t3Idx)==5)-1;
+                X{lt+3}=data(t4Idx,:);
+                Y{lt+3}=2*(val(t4Idx)==1)-1;
+                X{lt+4}=data(t5Idx,:);
+                Y{lt+4}=2*(val(t5Idx)==5)-1;
+                X{lt+5}=data(t6Idx,:);
+                Y{lt+5}=2*(val(t6Idx)==1)-1;
+            else
+                X{lt}=data(t1Idx,:);
+                Y{lt}=2*(val(t1Idx)==5)-1;
+                X{lt+1}=data(t2Idx,:);
+                Y{lt+1}=2*(val(t2Idx)>3)-1;
+                X{lt+2}=data(t3Idx,:);
+                Y{lt+2}=2*(val(t3Idx)==1)-1;
+                X{lt+3}=data(t4Idx,:);
+                Y{lt+3}=2*(val(t4Idx)==5)-1;
+                X{lt+4}=data(t5Idx,:);
+                Y{lt+4}=2*(val(t5Idx)>3)-1;
+                X{lt+5}=data(t6Idx,:);
+                Y{lt+5}=2*(val(t6Idx)==1)-1;
+            end
+            trainSize=40; % Number of training instances
+        case 9
+            % Split each domain to 9 and use 3 thresholds
+            
+            t1Idx=[s1(1:26),s2(1:26),s4(1:26),s5(1:26)];
+            t2Idx=[s1(27:52),s2(27:52),s4(27:52),s5(27:52)];
+            t3Idx=[s1(53:78),s2(53:78),s4(53:78),s5(53:78)];
+            t4Idx=[s1(79:104),s2(79:104),s4(79:104),s5(79:104)];
+            t5Idx=[s1(105:130),s2(105:130),s4(105:130),s5(105:130)];
+            t6Idx=[s1(131:156),s2(131:156),s4(131:156),s5(131:156)];
+            t7Idx=[s1(157:182),s2(157:182),s4(157:182),s5(157:182)];
+            t8Idx=[s1(183:208),s2(183:208),s4(183:208),s5(183:208)];
+            t9Idx=[s1(209:234),s2(209:234),s4(209:234),s5(209:234)];
+            
+            X{lt}=data(t1Idx,:);
+            Y{lt}=2*(val(t1Idx)==5)-1;
+            X{lt+1}=data(t2Idx,:);
+            Y{lt+1}=2*(val(t2Idx)>3)-1;
+            X{lt+2}=data(t3Idx,:);
+            Y{lt+2}=2*(val(t3Idx)==1)-1;
+            X{lt+3}=data(t4Idx,:);
+            Y{lt+3}=2*(val(t4Idx)==5)-1;
+            X{lt+4}=data(t5Idx,:);
+            Y{lt+4}=2*(val(t5Idx)>3)-1;
+            X{lt+5}=data(t6Idx,:);
+            Y{lt+5}=2*(val(t6Idx)==1)-1;
+            X{lt+6}=data(t7Idx,:);
+            Y{lt+6}=2*(val(t7Idx)==5)-1;
+            X{lt+7}=data(t8Idx,:);
+            Y{lt+7}=2*(val(t8Idx)>3)-1;
+            X{lt+8}=data(t9Idx,:);
+            Y{lt+8}=2*(val(t9Idx)==1)-1;
+            trainSize=26; % Number of training instances
+    end
+    lt=lt+nsplits;
+    
 end
-
+clear feat target data val s1 s2 s4 s5
 N=cellfun(@(x) size(x,1),X);
 
+K=length(Y);
 % Model Settings
-models={'ITL','STL','MTFL','SHAMO','CMTL','MTDict','MTFactor','TriFactor'};%{'STL','MMTL','SPMMTL','MTFL','SPMTFL','MTML','SPMTML','MTASO','SPMTASO'}; % Choose subset: {'STL','MMTL','MTFL','MTRL','MTDict','MTFactor'};
-trainSize=150; % Number of training instances
+models={'SparseMatrixNorm','SparseTriFactor'};%
+%{'ITL','STL','MTFL','SHAMO','CMTL','MTDict','MTFactor','TriFactor'};%{'STL','MMTL','SPMMTL','MTFL','SPMTFL','MTML','SPMTML','MTASO','SPMTASO'}; % Choose subset: {'STL','MMTL','MTFL','MTRL','MTDict','MTFactor'};
 
 
 
-%{
-    for ii=1:length(N)
-        if N(ii)<1000
-            X{ii}=[];
-            Y{ii}=[];
-        end
-    end
-
-X=X(~cellfun('isempty',X));
-Y=Y(~cellfun('isempty',Y));
 
 
-
-% Remove infrequent features
-tsum=0;
-%spercent=zeros(1,K);
-nfeat=1000;
-for tt=1:K
-    ns=sum(X{tt},1);
-    %ss=sort(ns,'descend');
-    %spercent(tt)=sum(ss(1:nfeat))/sum(ss);
-    tsum=tsum+ns;
-end
-[ssum,idx]=sort(tsum,'descend');
-tpercent=sum(ssum(1:nfeat))/sum(ssum);
-
-
-for tt=1:K
-    sel=cvpartition(Y{tt},'HoldOut',1000);
-    X{tt}=X{tt}(sel.test,idx(1:nfeat));
-    Y{tt}=Y{tt}(sel.test);
-end
-clear idx ssum sel
-%}
 Nrun=5;
 % CV Settings
 kFold = 3; % 5 fold cross validation
@@ -76,20 +172,22 @@ N=cellfun(@(x) size(x,1),X);
 
 opts.dataset=dataset;
 opts.loss='least'; % Choose one: 'logit', 'least', 'hinge'
-opts.scoreType='rmse'; % Choose one: 'perfcurve', 'class', 'mse', 'nmse'
-opts.isHigherBetter=false;
-opts.debugMode=true;
+opts.scoreType='fmeasure'; % Choose one: 'perfcurve', 'class', 'mse', 'nmse'
+opts.isHigherBetter=true;
+opts.debugMode=false;
 opts.verbose=true;
 opts.tol=1e-6;
 opts.maxIter=100;
-opts.maxOutIter=5;
-opts.cv=false;
+opts.maxOutIter=25;
+opts.cv=true;
 
-kappa=10;%8,10
-kappa1=12;%10,12
-kappa2=10;%8,10
+%TypeA: (8,10,8),(10,12,10)
+%TypeB: (22,12,22)
+kappa=15;
+kappa1=12;
+kappa2=15;
 
-fprintf('kappa: %d, kappa1: %d, kappa2: %d\n',kappa,kappa1,kappa2);
+fprintf('kappa: %d, kappa1: %d, kappa2: %d nsplits:%d nthr:%d\n',kappa,kappa1,kappa2,nsplits,nth);
 
 cv=[];
 
@@ -122,20 +220,20 @@ for rId=1:Nrun
     
     
     % Split Data into train and test
-    split=cellfun(@(n) cvpartition(n,'HoldOut',n-trainSize),num2cell(N),'UniformOutput',false);
+    split=cellfun(@(y,n) cvpartition(y,'HoldOut',n-trainSize),Y,num2cell(N),'UniformOutput',false);
     
     Xtrain=cellfun(@(x,split_t) {x(split_t.training,:)}, X, split);
     Ytrain=cellfun(@(y,split_t) {y(split_t.training,:)}, Y,split);
     Xtest=cellfun(@(x,split_t) {x(split_t.test,:)}, X, split);
     Ytest=cellfun(@(y,split_t) {y(split_t.test,:)}, Y,split);
-   
+    
     
     % Normalize Data if needed
     %[Xtrain,~,meanX,stdX] = normalizeMultitaskData(Xtrain);
     % Normalize Test Data
     %[Xtest,~,~,~] = normalizeMultitaskData(Xtest,[],meanX,stdX);
     
-    %load(sprintf('cv/%s_cv_%0.2f_%d.mat',dataset,trainSize,1));
+    %load(sprintf('cv/%s_cv_%0.2f_%d.mat',dataset,120,1));
     %cv=[];
     if (isempty(cv) && opts.cv)
         %------------------------------------------------------------------------
@@ -160,7 +258,7 @@ for rId=1:Nrun
             opts.debugMode=false;
             cvDebugFlag=true;
         end
-        
+        %{
         [cv.stl.mu,cv.stl.perfMat]=CrossValidation1Param( Xtrain,Ytrain, 'STLearner', opts, lambda_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
         kk=opts.kappa;
         opts.kappa=1;
@@ -176,7 +274,17 @@ for rId=1:Nrun
         opts.rho_l1=0;
         [cv.mtfactor.rho_fr1,cv.mtfactor.rho_fr2,cv.mtfactor.perfMat]=CrossValidation2Param( Xtrain,Ytrain, 'BiFactorMTLearner', opts, lambda_range, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
         [cv.trifactor.rho_fr1,cv.trifactor.rho_fr2,cv.trifactor.perfMat]=CrossValidation2Param( Xtrain,Ytrain, 'TriFactorMTLearner', opts, lambda_range, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
-
+        %}
+        
+        opts.sparseOmega=true;
+        opts.sparseSigma=true;
+        opts.rho_l1=0.1;
+        [cv.matnorm.rho_fr,cv.matnorm.perfMat]=CrossValidation1Param( Xtrain,Ytrain, 'MatrixNormalMTLearner', opts, lambda_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
+        [cv.sparsetrifactor.rho_fr1,cv.sparsetrifactor.rho_fr2,cv.sparsetrifactor.perfMat]=CrossValidation2Param( Xtrain,Ytrain, 'TriFactorMTLearner', opts, lambda_range, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
+        opts.rho_l1=0;
+        opts.sparseOmega=false;
+        opts.sparseSigma=false;
+        %}
         
         %[cv.mtml.rho_fr,cv.mtml.perfMat]=CrossValidation1Param( Xtrain,Ytrain, 'MTMLearner', opts, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
         %[cv.mtaso.rho_fr,cv.mtaso.perfMat]=CrossValidation1Param( Xtrain,Ytrain, 'MTASOLearner', opts, param_range,kFold, 'eval_MTL', opts.isHigherBetter,opts.scoreType);
@@ -204,7 +312,7 @@ for rId=1:Nrun
         tic
         switch model
             case 'ITL'
-                cv.itl.mu=0.1;
+                cv.itl.mu=1e-1;
                 opts.kappa=1;
                 opts.rho_l1=0;
                 [W,C,clusters] = SharedMTLearner(Xtrain, Ytrain,cv.itl.mu,opts);
@@ -227,7 +335,7 @@ for rId=1:Nrun
                 if opts.verbose
                     fprintf('*');
                 end
-            %{
+                %{
             case 'SPMMTL'
                 % Self-paced Mean multi-task learner
                 lambda=0.05;
@@ -236,15 +344,15 @@ for rId=1:Nrun
                     fprintf('*');
                 end
                 result{m}.tau{rId}=tau;
-            %}
+                %}
             case 'MTFL'
                 % Multi-task Feature Learner
-                cv.mtfl.rho_fr=0.1;
+                %cv.mtfl.rho_fr=0.01;
                 [W,C, invD] = MTFLearner(Xtrain, Ytrain,cv.mtfl.rho_fr,opts);
                 if opts.verbose
                     fprintf('*');
                 end
-            %{
+                %{
             case 'SPMTFL'
                 % Self-paced Multi-task Feature Learner
                 %opts.rho_l1=0;
@@ -301,7 +409,7 @@ for rId=1:Nrun
                 if opts.verbose
                     fprintf('*');
                 end
-            %}    
+                %}
             case 'MTRL'
                 % Multi-task Relationship Learner
                 [W,C, Omega] = MTRLearner(Xtrain, Ytrain,cv.mtrl.rho_sr,opts);
@@ -311,14 +419,14 @@ for rId=1:Nrun
             case 'MTDict'
                 % Multi-task Dictionary Learner
                 opts.kappa=kappa;
-                cv.mtdict.rho_fr=0.1;
-                cv.mtdict.rho_l1=0.1;
+                %cv.mtdict.rho_fr=1e-3;
+                %cv.mtdict.rho_l1=10;
                 [W,C,F,G] = MTDictLearner(Xtrain, Ytrain,cv.mtdict.rho_fr,cv.mtdict.rho_l1,opts);
                 if opts.verbose
                     fprintf('*');
                 end
             case 'SHAMO'
-                cv.shamo.rho_fr=0.1;
+                %cv.shamo.rho_fr=1;
                 opts.kappa=kappa;
                 opts.rho_l1=0;
                 [W,C,clusters] = SharedMTLearner(Xtrain, Ytrain,cv.shamo.rho_fr,opts);
@@ -327,15 +435,15 @@ for rId=1:Nrun
                 end
             case 'CMTL'
                 % Multi-task learning by Clustering (Barzillai)
-                cv.cmtl.rho_fr=0.1;
+                %cv.cmtl.rho_fr=0.01;
                 [W,C,Omega] = MTByClusteringLearner(Xtrain, Ytrain,cv.cmtl.rho_fr,opts);
                 if opts.verbose
                     fprintf('*');
                 end
             case 'MTFactor'
                 % Multi-task BiFactor Relationship Learner
-                cv.mtfactor.rho_fr1=0.1;
-                cv.mtfactor.rho_fr2=0.1;
+                %cv.mtfactor.rho_fr1=1;
+                %cv.mtfactor.rho_fr2=1000;
                 opts.kappa=kappa;
                 [W,C,F,G,Sigma, Omega] = BiFactorMTLearner(Xtrain, Ytrain,cv.mtfactor.rho_fr1,cv.mtfactor.rho_fr2,opts);
                 if opts.verbose
@@ -345,9 +453,31 @@ for rId=1:Nrun
                 % Multi-task TriFactor Relationship Learner
                 opts.kappa1=kappa1;
                 opts.kappa2=kappa2;
-                cv.trifactor.rho_fr1=0.1;
-                cv.trifactor.rho_fr2=0.1;
+                %cv.trifactor.rho_fr1=100;
+                %cv.trifactor.rho_fr2=1000;
                 [W,C,F,S,G,Sigma, Omega] = TriFactorMTLearner(Xtrain, Ytrain,cv.trifactor.rho_fr1,cv.trifactor.rho_fr2,opts);
+                if opts.verbose
+                    fprintf('*');
+                end
+             case 'SparseMatrixNorm'
+                % Matrix Normal Multi-task Learner
+                %cv.matnorm.rho_fr=0.1;
+                opts.rho_l1=0.1;
+                [W,C,Sigma, Omega] = MatrixNormalMTLearner(Xtrain, Ytrain,cv.matnorm.rho_fr,opts);
+                if opts.verbose
+                    fprintf('*');
+                end
+             case 'SparseTriFactor'
+                % Multi-task TriFactor Relationship Learner
+                opts.kappa1=kappa1;
+                opts.kappa2=kappa2;
+                opts.sparseOmega=true;
+                opts.sparseSigma=true;
+                
+                %cv.trifactor.rho_fr1=100;
+                %cv.trifactor.rho_fr2=1000;
+                opts.rho_l1=0.1;
+                [W,C,F,S,G,Sigma, Omega] = TriFactorMTLearner(Xtrain, Ytrain,cv.sparsetrifactor.rho_fr1,cv.sparsetrifactor.rho_fr2,opts);
                 if opts.verbose
                     fprintf('*');
                 end
